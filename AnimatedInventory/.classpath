@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="C:/Users/Zach/Desktop/BuildTools/spigot-1.14.4.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Zach/eclipse-workspace/spigot-1.13.2.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Zach/eclipse-workspace/BungeeCord.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

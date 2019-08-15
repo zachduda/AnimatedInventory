@@ -70,6 +70,8 @@ public class Main extends JavaPlugin implements Listener {
 			 getLogger().info("PerWorldInventory has been detected.");  
 		  }
 		 
+		 updateConfig();
+		 
 	  // Big Thanks <3
 		getLogger().info("Thanks to extended_clip for the additional help.");
 		// ----------------
@@ -173,6 +175,14 @@ public class Main extends JavaPlugin implements Listener {
 		     Cooldowns.removeAll(online.getPlayer());
             }}
 	        
+	  }
+	  
+	  public void updateConfig() {
+		  if(getConfig().getBoolean("features.clearing.slot-switching")) {
+		  MC1_14.moveslots = true;
+		  } else {
+			  MC1_14.moveslots = false;  
+		  }
 	  }
 	  
 	public void configChecks() {		  
@@ -514,7 +524,7 @@ public class Main extends JavaPlugin implements Listener {
 		@EventHandler(priority = EventPriority.HIGH)
 			public void onSlotChange(PlayerItemHeldEvent e) {
 			 if(Cooldowns.active.containsKey(e.getPlayer()) || Cooldowns.activefortune.containsKey(e.getPlayer())) {
-				 if(getConfig().getBoolean("features.prevemt-player-slot-changes")) {
+				 if(getConfig().getBoolean("features.prevent-player-slot-changes")) {
 				 e.setCancelled(true);
 				 }
 			 }
@@ -811,6 +821,7 @@ public class Main extends JavaPlugin implements Listener {
 				   disabledfortuneworld.clear();
 					disabledclearworld.addAll(getConfig().getStringList("features.clearing.disabled-worlds"));
 					disabledfortuneworld.addAll(getConfig().getStringList("features.fortunes.disabled-worlds"));
+					updateConfig();
 		    	 Msgs.send(sender, getConfig().getString("messages.reload"));
 		    	 if(getConfig().getBoolean("options.debug")) {
 				   getLogger().info("[Debug] Disabled Clear Worlds: " + disabledclearworld.toString());

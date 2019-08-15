@@ -20,6 +20,8 @@ import com.zach_attack.inventory.Particlez;
 
 public class MC1_14 implements Listener{
 	static Main plugin = Main.getPlugin(Main.class);
+	
+	   public static boolean moveslots = true;
 	  
 		public static void emergencyRemove() {
 			try {
@@ -829,7 +831,7 @@ public class MC1_14 implements Listener{
             public void run()
             {
            	  p.getInventory().setItem(0, glass);
-           	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+           	  if(moveslots) {
          	  p.getPlayer().getInventory().setHeldItemSlot(1);
            	  }
             }
@@ -840,7 +842,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(1, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(2);
          	  }
         	  plugin.clearingsound(p);
@@ -852,7 +854,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(2, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(3);
          	  }
           }
@@ -863,7 +865,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(3, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(4);
          	  }
           }
@@ -874,7 +876,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(4, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(5);
          	  }
         	  plugin.clearingsound(p);
@@ -886,7 +888,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(5, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(6);
          	  }
           }
@@ -897,7 +899,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(6, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(7);
          	  }
           }
@@ -908,7 +910,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(7, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(8);
          	  }
         	  plugin.clearingsound(p);
@@ -920,7 +922,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
          	  p.getInventory().setItem(8, glass);
-         	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+         	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(8);
          	  }
           }
@@ -932,7 +934,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
         	  p.getInventory().setItem(8, air);
-        	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+        	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(7);
         	  }
         	  plugin.clearingsound(p);
@@ -944,7 +946,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
         	  p.getInventory().setItem(7, air);
-        	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+        	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(6);
         	  }
           }
@@ -955,7 +957,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
         	  p.getInventory().setItem(6, air);
-        	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+        	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(5);
         	  }
           }
@@ -966,7 +968,7 @@ public class MC1_14 implements Listener{
           public void run()
           {
         	  p.getInventory().setItem(5, air);
-        	  if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+        	  if(moveslots) {
         	  p.getPlayer().getInventory().setHeldItemSlot(4);
         	  }
           }
@@ -1058,7 +1060,7 @@ public class MC1_14 implements Listener{
             public void run()
             {
            	  p.getInventory().setItem(4, b);
-           	 if(plugin.getConfig().getBoolean("features.clearing.slot-switching")) {
+           	 if(moveslots) {
          	  p.getPlayer().getInventory().setHeldItemSlot(4);
            	 }
          	  p.playSound(p.getLocation(), Sound.ITEM_ARMOR_EQUIP_GOLD, 5.0f, 0.1f);

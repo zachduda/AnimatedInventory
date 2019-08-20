@@ -17,6 +17,7 @@ import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.Main;
 import com.zach_attack.inventory.Msgs;
 import com.zach_attack.inventory.Particlez;
+import com.zach_attack.inventory.api.PlayerFortuneEvent;
 
 public class MC1_14 implements Listener{
 	static Main plugin = Main.getPlugin(Main.class);
@@ -47,11 +48,11 @@ public class MC1_14 implements Listener{
 						    
 							    for (Player online : Bukkit.getServer().getOnlinePlayers())
 							    {  
-						  if(online.getInventory().contains(one) && online.getInventory().contains(two)) {
+						  if(online.getInventory().contains(one) && online.getInventory().contains(two) || Cooldowns.activefortune.containsKey(online)) {
 							  online.getInventory().clear(); 
 							  plugin.getLogger().info("Attempted to restore " + online.getName() + "'s inventory. (They were in the middle of a fortune)");
 							  Cooldowns.activefortune.remove(online); 
-							  online.sendMessage("§c§lSorry! §fThe plugin was reloaded, we have ended your fortune.");
+							 Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we have ended your fortune.");
 							  plugin.bass(online);
 							  try {
 							  plugin.loadInv(online);
@@ -59,10 +60,11 @@ public class MC1_14 implements Listener{
 							  plugin.deleteInv(online);
 						  }
 						  
-						  if(online.getInventory().contains(token)) {
+						  if(online.getInventory().contains(token) || Cooldowns.active.containsKey(online)) {
 							  online.getInventory().clear(); 
-							  online.sendMessage("§c§lSorry! §fThe plugin was reloaded, we force cleared your inventory.");
+							  Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we force cleared your inventory.");
 							  plugin.bass(online);
+							  Cooldowns.active.remove(online);
 							  plugin.getLogger().info("Attempted to clear " + online.getName() + "'s inventory. (They were in the middle of clearing.)");
 							    }
 							    }
@@ -71,8 +73,14 @@ public class MC1_14 implements Listener{
 			}
 					}
 		
-	  public static void fortune(CommandSender sender) {
-	  final Player p = (Player)sender;
+	  public static void fortune(final Player p) {	
+		  
+		PlayerFortuneEvent pfe = new PlayerFortuneEvent(p);
+		Bukkit.getPluginManager().callEvent(pfe);
+		if (pfe.isCancelled()) {
+			return;
+		}
+		
 	  boolean debug = (plugin.getConfig().getBoolean("options.debug"));
 	  int good_luck_int = plugin.getConfig().getInt("features.fortunes.result.good-luck");
 	  

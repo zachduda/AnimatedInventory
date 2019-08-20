@@ -28,6 +28,7 @@ messages:
   backup-no-file-other: '&c&lHm. &fWe don''t have a backup of &7%player%''s &finventory.'
   backup-must-wait: '&c&lSlow Down! &fYou can only do that every &7%number%s'
   undo-suggestion: '&7&oDid you possibly mean: &f/ai undoclear'
+  tp-cancelled: '&c&lSorry. &fYou must wait until your clear/fortune is over to TP.'
 features:
   # The prevention settings apply to both fortunes & clearing.
   prevent-drop: true

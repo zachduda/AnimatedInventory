@@ -35,7 +35,7 @@ import com.zach_attack.inventory.Main;
 			}
 		}
 	   
-	   static boolean notHurt(final Player p) {
+	   public static boolean notHurt(final Player p) {
 		   if(!plugin.getConfig().getBoolean("features.fortunes.prevent-if-being-hurt")) {
 			   return true;
 		   }

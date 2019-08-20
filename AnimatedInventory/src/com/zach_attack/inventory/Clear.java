@@ -11,11 +11,12 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import com.zach_attack.inventory.api.PlayerClearInventoryEvent;
 import com.zach_attack.inventory.support.MC1_14;
 
 public class Clear {
 	static Main plugin = Main.getPlugin(Main.class);
-	
+
 	static void purgeCache() {
 		 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 		boolean debug = plugin.getConfig().getBoolean("options.debug");
@@ -201,8 +202,15 @@ public class Clear {
  	 if(animations.size() == 0 || animations.isEmpty()) {
  		 plugin.getLogger().info("All animations were disabled in the config.yml. Aborting.");
  		 Cooldowns.active.remove(p);
+ 		 animations.clear(); // most likely not needed, but it helps me sleep at night
  		 return;
  	 }
+ 	 
+		PlayerClearInventoryEvent pce = new PlayerClearInventoryEvent(p);
+		Bukkit.getPluginManager().callEvent(pce);
+		if (pce.isCancelled()) {
+			return;
+		}
  	 
 	Random random = new Random();
 	Integer randomInt = animations.get(random.nextInt(animations.size()));

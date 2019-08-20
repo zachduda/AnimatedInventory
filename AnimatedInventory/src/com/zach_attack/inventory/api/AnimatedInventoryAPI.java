@@ -1,8 +1,11 @@
-package com.zach_attack.inventory;
+package com.zach_attack.inventory.api;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-
+import com.zach_attack.inventory.Clear;
+import com.zach_attack.inventory.Cooldowns;
+import com.zach_attack.inventory.Main;
+import com.zach_attack.inventory.Msgs;
 import com.zach_attack.inventory.support.MC1_14;
 
 public final class AnimatedInventoryAPI {
@@ -102,4 +105,5 @@ public final class AnimatedInventoryAPI {
 	public String getPluginVersion() {
 		return plugin.getDescription().getVersion().toString();
 	}
+	
 }

@@ -29,6 +29,7 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -37,7 +38,7 @@ import com.zach_attack.inventory.other.Updater;
 import com.zach_attack.inventory.support.MC1_14;
 import com.zach_attack.inventory.other.Metrics;
 import com.zach_attack.inventory.Cooldowns;
-import com.zach_attack.inventory.AnimatedInventoryAPI;
+import com.zach_attack.inventory.api.AnimatedInventoryAPI;
 
 
 public class Main extends JavaPlugin implements Listener {
@@ -50,6 +51,9 @@ public class Main extends JavaPlugin implements Listener {
 	public ArrayList<String> disabledfortuneworld = (ArrayList<String>) getConfig().getStringList("features.fortunes.disabled-worlds");
 	public static boolean outdatedplugin = false;
 	public static String outdatedpluginversion = "0";
+	
+	boolean preventglitch = true;
+	String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
 	
 	  public void onEnable() { 
 		  
@@ -116,7 +120,7 @@ public class Main extends JavaPlugin implements Listener {
 			       }
 		 	    }}
 		    
-		    if(!getDescription().getVersion().contains("pre")) {
+
 		  if (getConfig().getBoolean("options.updates.notify")) {
 				    try
 				    {
@@ -127,7 +131,7 @@ public class Main extends JavaPlugin implements Listener {
 		  } else {
 			  outdatedplugin = false;
 			  outdatedpluginversion = "0";
-		  }}
+		  }
 		
 		  Bukkit.getServer().getPluginManager().registerEvents(this, this);
 		  
@@ -183,6 +187,16 @@ public class Main extends JavaPlugin implements Listener {
 		  } else {
 			  MC1_14.moveslots = false;  
 		  }
+		  
+		  int worlds = Bukkit.getWorlds().size();
+		  if(worlds > 1) {
+			  preventglitch = true;
+			  getLogger().info("Found " + worlds + " loaded worlds. We'll block TP'ing during fortunes/clearing to prevent inventory glitches.");
+		  } else {
+			  preventglitch = false;
+		  }
+		  
+		  canceltpmsg = getConfig().getString("messages.tp-cancelled");
 	  }
 	  
 	public void configChecks() {		  
@@ -512,9 +526,11 @@ public class Main extends JavaPlugin implements Listener {
 		    public void onPlayerDeath(PlayerDeathEvent event) {
 			  if(getConfig().getBoolean("features.prevent-drop")) {
 		    	if(Cooldowns.activefortune.containsKey(event.getEntity().getPlayer()) || Cooldowns.active.containsKey(event.getEntity().getPlayer())) {
-		                for(ItemStack i : event.getDrops()) {
-		                    i.setType(Material.AIR);
-		                }
+		                
+		    		   if(!event.getKeepInventory()) {
+		    		    event.getDrops().clear();
+		    		    }
+		    		   
 		                getLogger().info(event.getEntity().getPlayer().getName() + " died. Their drops were canceled!");
 		                Msgs.send(event.getEntity().getPlayer(), getConfig().getString("messages.death"));
 		       }
@@ -883,7 +899,7 @@ public class Main extends JavaPlugin implements Listener {
 		    		    				getLogger().info("[Debug] Self induced fortune: " + p.getName());
 		    		    			}
 		    	     		    	 try {
-		    	          		    	MC1_14.fortune(sender);
+		    	          		    	MC1_14.fortune(p);
 		    	          		    	 }catch(Exception e) { 
 		    	          		    		 errorMsg(p, 10, e);
 		    	          		    	 }	
@@ -1154,26 +1170,46 @@ public class Main extends JavaPlugin implements Listener {
 	    }
 	    
 	    @EventHandler(priority = EventPriority.HIGHEST)
+	    public void onTP(PlayerTeleportEvent e) {
+	    	if(!preventglitch) {
+	    		return;
+	    	}
+	    	
+	    	Player p = e.getPlayer();
+	    	
+	    	if(Cooldowns.active.containsKey(p) || Cooldowns.activefortune.containsKey(p)) {
+	    		bass(p);
+	    		Msgs.sendPrefix(p, canceltpmsg);
+	    		e.setCancelled(true);
+	    		return;
+	    	}
+	    }
+	    
+	    @EventHandler(priority = EventPriority.LOW)
 	    public void onWorld(PlayerChangedWorldEvent e) {
+	    	if(!preventglitch) {
+	    		return;
+	    	}
+	    	
+	    	Player p = e.getPlayer();
 	    	
 		      Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
 		          public void run()
 		          { 
+		  	    	if(!p.isOnline()) {
+		  	    		// Do nada, we missed em' chief
+			    	} else {
+		  	    	
 		  	    	final ItemStack token = new ItemStack(Material.getMaterial(getConfig().getString("features.clearing.token-item")));
 				    ItemMeta tokenm = token.getItemMeta();
 				    tokenm.setDisplayName(ChatColor.translateAlternateColorCodes('&', getConfig().getString("features.clearing.token")));
 				    token.setItemMeta(tokenm);
 				    
-		  	    	if(e.getPlayer().getInventory().contains(token)) {
-		  	    		e.getPlayer().getInventory().clear();
-		  	    		getLogger().info(e.getPlayer().getName() + " switched worlds during a clear and glitched their inventory. Clearing everything!");
-		  	    	}
-		          }
-		        }, 25L);
-	   
-		      Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
-		          public void run()
-		          {
+		  	    	if(p.getInventory().contains(token) || Cooldowns.active.containsKey(p)) {
+		  	    		p.getInventory().clear();
+		  	    		}
+		  	    	
+		  	    	
 					  final ItemStack one = new ItemStack(Material.LIME_CONCRETE);
 					    ItemMeta onem = one.getItemMeta();
 					    onem.setDisplayName(ChatColor.translateAlternateColorCodes('&', getConfig().getString("features.fortunes.yes-block.name")));
@@ -1184,15 +1220,15 @@ public class Main extends JavaPlugin implements Listener {
 						    twom.setDisplayName(ChatColor.translateAlternateColorCodes('&', getConfig().getString("features.fortunes.no-block.name")));
 						    two.setItemMeta(twom);
 				   
-		   		   if(e.getPlayer().getInventory().contains(one) && e.getPlayer().getInventory().contains(two)) {
-					   e.getPlayer().getInventory().clear();
-					   getLogger().info(e.getPlayer().getName() + "'s fortune is glitched because they switched inventories. Will clear fortune items if they are stuck!");
-				   }
+		   		   if(p.getInventory().contains(one) && p.getInventory().contains(two) || Cooldowns.activefortune.containsKey(p)) {
+					   p.getInventory().clear();
+					   getLogger().info(p.getName() + "'s fortune is glitched because they switched inventories. Will clear fortune items if they are stuck!");
+		   		   	   }
+			    	}
 		          }
-		        }, 25L);
+		        }, 12L);
 	    }
 	    
-	    @EventHandler(priority = EventPriority.HIGH)
 	    public void onJoin(PlayerJoinEvent e)
 	    {    final Player player = e.getPlayer();
 	    

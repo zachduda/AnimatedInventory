@@ -31,7 +31,7 @@ public class Updater {
     }
 
     public void checkForUpdate() {
-    	if (!javaPlugin.getConfig().getBoolean("options.updates.notify") || javaPlugin.getDescription().getVersion().toString().contains("pre")) {
+    	if (!javaPlugin.getConfig().getBoolean("options.updates.notify")) {
     		return;
     	}
     	

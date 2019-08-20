@@ -45,7 +45,7 @@ public class Particlez implements Listener{
 		    for (Player online : Bukkit.getServer().getOnlinePlayers())
 		    {
 		      World world = p.getLocation().getWorld();
-		      world.spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 5, 0.4D, 0.2D, 0.4D, 0.1D);
+		      world.spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 3, 0.4D, 0.2D, 0.4D, 0.1D);
 		    }
 			  }catch(Exception e) { plugin.getLogger().info("ERROR! Couldn't display FLAME particle.");}
 		  }

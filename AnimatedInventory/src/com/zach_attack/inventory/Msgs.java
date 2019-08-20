@@ -16,7 +16,7 @@ public class Msgs {
 	    sender.sendMessage(prefix + " " + (ChatColor.translateAlternateColorCodes('&', msg)));	
 	}
 	
-	static void sendPrefix(CommandSender sender, String msg) {
+	public static void sendPrefix(CommandSender sender, String msg) {
 	    String prefix = ChatColor.translateAlternateColorCodes('&', "&8[&b&lA&r&bnimated&f&lI&r&fnv&8]");
 	    sender.sendMessage(prefix + " " + (ChatColor.translateAlternateColorCodes('&', msg)));	
 	}

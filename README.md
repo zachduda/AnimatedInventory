@@ -4,6 +4,6 @@ AnimatedInventory helps to spice up your server with several animations to clear
 # Spigot
 You can find AnimatedInventory on our spigot page @: https://www.spigotmc.org/resources/animatedinventory.59785/
 
-# API
+# Getting Started with the API
 AnimatedInventory is equipped with an API for developers to use. See our Spigot Wiki page below for help on how to use it!
 https://www.spigotmc.org/wiki/animatedinventoryapi/

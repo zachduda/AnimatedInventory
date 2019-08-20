@@ -17,6 +17,7 @@ import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.Main;
 import com.zach_attack.inventory.Msgs;
 import com.zach_attack.inventory.Particlez;
+import com.zach_attack.inventory.api.PlayerFortuneEndEvent;
 import com.zach_attack.inventory.api.PlayerFortuneEvent;
 
 public class MC1_14 implements Listener{
@@ -437,9 +438,13 @@ public class MC1_14 implements Listener{
         }, 110L);
       // FINAL FORTUNE ---------------------------------
       if(s <= good_luck_int) {
+			PlayerFortuneEndEvent pfee = new PlayerFortuneEndEvent(p, true);
+			Bukkit.getPluginManager().callEvent(pfee);
+			
     	  if(plugin.getConfig().getBoolean("features.fortunes.result.notify-console")) {
     	  plugin.getLogger().info(p.getName() + " got 'YES' on their fortune.");
     	  }
+    	  
       Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
           public void run()
           {
@@ -470,7 +475,10 @@ public class MC1_14 implements Listener{
         	  }
           }
         }, 185L);
-      } else {
+      } else { // if yes int didn't match, it's a no from me, I'm out.
+			PlayerFortuneEndEvent pfee = new PlayerFortuneEndEvent(p, false);
+			Bukkit.getPluginManager().callEvent(pfee);
+			
     	  if(plugin.getConfig().getBoolean("features.fortunes.result.notify-console")) {
     	  plugin.getLogger().info(p.getName() + " got 'NO' on their fortune.");
     	  }

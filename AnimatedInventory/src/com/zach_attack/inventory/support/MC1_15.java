@@ -20,7 +20,7 @@ import com.zach_attack.inventory.Particlez;
 import com.zach_attack.inventory.api.PlayerFortuneEndEvent;
 import com.zach_attack.inventory.api.PlayerFortuneEvent;
 
-public class MC1_14 implements Listener{
+public class MC1_15 implements Listener{
 	static Main plugin = Main.getPlugin(Main.class);
 	
 	   public static boolean moveslots = true;

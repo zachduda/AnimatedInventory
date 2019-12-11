@@ -35,7 +35,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.zach_attack.inventory.other.Updater;
-import com.zach_attack.inventory.support.MC1_14;
+import com.zach_attack.inventory.support.MC1_15;
 import com.zach_attack.inventory.other.Metrics;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.api.AnimatedInventoryAPI;
@@ -57,8 +57,8 @@ public class Main extends JavaPlugin implements Listener {
 	
 	  public void onEnable() { 
 		  
-		  if(!Bukkit.getBukkitVersion().contains("1.14") && !Bukkit.getVersion().contains("1.13")) {
-			  getLogger().warning("ERROR: This version of AnimatedInventory ONLY supports 1.14.X, or 1.13.2. Please use AnimatedInventory v6.4 or below!"); 
+		  if(!Bukkit.getBukkitVersion().contains("1.15") && !Bukkit.getBukkitVersion().contains("1.14") && !Bukkit.getVersion().contains("1.13")) {
+			  getLogger().warning("ERROR: This version of AnimatedInventory ONLY supports 1.15.X, 1.14.X, or 1.13.2. Please use AnimatedInventory v6.4 or below!"); 
 			  Bukkit.getPluginManager().disablePlugin(this);
 			  return;
 		  }
@@ -145,7 +145,7 @@ public class Main extends JavaPlugin implements Listener {
 			disabledfortuneworld.addAll(getConfig().getStringList("features.fortunes.disabled-worlds"));
 			
 			  try {
-	            	 MC1_14.emergencyRemove();
+	            	 MC1_15.emergencyRemove();
 			  } catch(Exception e) {
 				  getLogger().info("Error when trying to check players inventorys on disable event.");
 				  if(getConfig().getBoolean("options.debug")) {
@@ -159,13 +159,13 @@ public class Main extends JavaPlugin implements Listener {
 		  disabledclearworld.clear();
 		   disabledfortuneworld.clear();
 		   
-		  if(!Bukkit.getBukkitVersion().contains("1.14") && !Bukkit.getBukkitVersion().contains("1.13")) {
-			  getLogger().warning("Disabled because the server is not running 1.14.X, or 1.13.X.."); 
+		  if(!Bukkit.getBukkitVersion().contains("1.15") && !Bukkit.getBukkitVersion().contains("1.14") && !Bukkit.getBukkitVersion().contains("1.13")) {
+			  getLogger().warning("Disabled because the server is not running 1.15.X, 1.14.X, or 1.13.2..."); 
 			  return;
 		  }
 		  
 		  try {
-            	 MC1_14.emergencyRemove();
+            	 MC1_15.emergencyRemove();
 		  } catch(Exception e) {
 			  getLogger().info("Error when trying to check players inventorys on disable event.");
 			  if(getConfig().getBoolean("options.debug")) {
@@ -183,9 +183,9 @@ public class Main extends JavaPlugin implements Listener {
 	  
 	  public void updateConfig() {
 		  if(getConfig().getBoolean("features.clearing.slot-switching")) {
-		  MC1_14.moveslots = true;
+			  MC1_15.moveslots = true;
 		  } else {
-			  MC1_14.moveslots = false;  
+			  MC1_15.moveslots = false;  
 		  }
 		  
 		  int worlds = Bukkit.getWorlds().size();
@@ -899,10 +899,10 @@ public class Main extends JavaPlugin implements Listener {
 		    		    				getLogger().info("[Debug] Self induced fortune: " + p.getName());
 		    		    			}
 		    	     		    	 try {
-		    	          		    	MC1_14.fortune(p);
-		    	          		    	 }catch(Exception e) { 
-		    	          		    		 errorMsg(p, 10, e);
-		    	          		    	 }	
+		    	          		    	MC1_15.fortune(p);
+		    	          		    }catch(Exception e) { 
+		    	          		    	errorMsg(p, 10, e);
+		    	          		    }	
 	    	}
 	    	else if(args[0].equalsIgnoreCase("clear")) {
 	    		if(!(sender instanceof Player)) {
@@ -1140,9 +1140,9 @@ public class Main extends JavaPlugin implements Listener {
 	    		  }
 	        	Msgs.send(sender, getConfig().getString("messages.fortune-other-success").replace("%player%", args[1].toString()));
 		    	 try {
-       		    		MC1_14.fortune(target);
+       		    		MC1_15.fortune(target);
        		    	Cooldowns.activefortune.put(target, target.getName());
-       		    	 }catch(Exception e) { errorMsg(target, 10, e);}
+		    	 }catch(Exception e) { errorMsg(target, 10, e);}
 	          }
 	          return true;  
 	      }else { 	    	  // too many args & not clear or fortune for players
@@ -1229,8 +1229,12 @@ public class Main extends JavaPlugin implements Listener {
 		        }, 12L);
 	    }
 	    
+	    @EventHandler
 	    public void onJoin(PlayerJoinEvent e)
-	    {    final Player player = e.getPlayer();
+	    { 
+	    
+	    Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+	    final Player player = e.getPlayer();
 	    
 	    // This is a dev-join message sent to me only. It's to help me understand which servers support my work <3
 	      if (player.getUniqueId().toString().equals("6191ff85-e092-4e9a-94bd-63df409c2079")) {
@@ -1239,12 +1243,11 @@ public class Main extends JavaPlugin implements Listener {
 	   // I kindly ask you leave the above portion in ANY modification of this plugin. Thank You!
 
 	      if(!getDescription().getVersion().toString().contains("pre")) {
-	    if (getConfig().getBoolean("options.updates.notify") &&
-	    	  (player.isOp()) || (player.hasPermission("animatedinv.admin"))) {
-				 if(outdatedplugin) {
-    	            	Msgs.sendPrefix(player, "&c&lOutdated Plugin. &7Using v" + getDescription().getVersion() + ", while the latest is &f&l" + outdatedpluginversion);
-			 }
-		   }}
+	      if (getConfig().getBoolean("options.updates.notify") &&
+	    	 (player.isOp()) || (player.hasPermission("animatedinv.admin"))) {
+			 if(outdatedplugin) {
+    	          Msgs.sendPrefix(player, "&c&lOutdated Plugin. &7Using v" + getDescription().getVersion() + ", while the latest is &f&l" + outdatedpluginversion);
+		}}}});
 	    	
 	    }// end of onPlayerGameJoin
 }

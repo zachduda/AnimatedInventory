@@ -6,7 +6,7 @@ import com.zach_attack.inventory.Clear;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.Main;
 import com.zach_attack.inventory.Msgs;
-import com.zach_attack.inventory.support.MC1_14;
+import com.zach_attack.inventory.support.MC1_15;
 
 public final class AnimatedInventoryAPI {
 	private final static Main plugin = Main.getPlugin(Main.class);
@@ -85,14 +85,13 @@ public final class AnimatedInventoryAPI {
 		if(dochecks) {
 		if(!Cooldowns.cooldown.containsKey(p) && !Cooldowns.active.containsKey(p) && Cooldowns.notHurt(p) && !Cooldowns.activefortune.containsKey(p)
 			    && !plugin.disabledfortuneworld.contains(p.getLocation().getWorld().getName())) {
-   		    		MC1_14.fortune(p);
-				 Cooldowns.activefortune.put(p.getPlayer(), p.getName()); 
+   		    	MC1_15.fortune(p);
+				Cooldowns.activefortune.put(p.getPlayer(), p.getName()); 
 		}
 	} else {
-	    		MC1_14.fortune(p);
-		 Cooldowns.activefortune.put(p.getPlayer(), p.getName()); 
-	}
-		}
+	    MC1_15.fortune(p);
+		Cooldowns.activefortune.put(p.getPlayer(), p.getName()); 
+	}}
 	
 	public static void sendPluginMsg(CommandSender sender, String msg, boolean sound) {
 		Msgs.send(sender, msg);

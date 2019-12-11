@@ -1,12 +1,10 @@
 package com.zach_attack.inventory;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import com.zach_attack.inventory.support.MC1_14AA;
-import com.zach_attack.inventory.support.MC1_13AA;
+import com.zach_attack.inventory.support.ActionBar;
 
 public class Msgs {
 	static Main plugin = Main.getPlugin(Main.class);
@@ -29,20 +27,11 @@ public class Msgs {
 		
   	  try {
   		  Player p = (Player)sender;
-  		  if(Bukkit.getBukkitVersion().contains("1.14")) {
-  			MC1_14AA.sendActionbar(p, ChatColor.translateAlternateColorCodes('&', msg));  
-  			return;
-  		  } else if(Bukkit.getBukkitVersion().contains("1.13")){
-  			  if(Bukkit.getBukkitVersion().contains("1.13.2")) {
-  			MC1_13AA.sendActionbar(p, ChatColor.translateAlternateColorCodes('&', msg));  
-  			return;
-  			  } else {
-  				  plugin.getLogger().warning("ERROR. Could not use Actionbar because you're not using the latest 1.13.2 version.");
-  			  }
-  		  }
+  		  ActionBar.send(p, ChatColor.translateAlternateColorCodes('&', msg));  
+  		  return;
 	  } catch (Exception e) { 
 		  if(plugin.getConfig().getBoolean("options.debug")) {
-       plugin.getLogger().info("[Debug] Failed to use hotbar message. Using normal msg instead. Make sure you use 1.14/1.13/1.12");
+       plugin.getLogger().info("[Debug] Failed to use hotbar message. Using normal msg instead. Make sure you use 1.15/1.14/1.13/1.12");
 		  }
        try {
        send(sender, msg);

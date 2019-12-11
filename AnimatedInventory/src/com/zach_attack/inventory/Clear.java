@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import com.zach_attack.inventory.api.PlayerClearInventoryEvent;
-import com.zach_attack.inventory.support.MC1_14;
+import com.zach_attack.inventory.support.MC1_15;
 
 public class Clear {
 	static Main plugin = Main.getPlugin(Main.class);
@@ -222,19 +222,19 @@ public class Clear {
 		
   	 try {
   		if(randomInt == 1) {
-  		  		MC1_14.animation1(p);
+  		  		MC1_15.animation1(p);
   		} else
   	  		if(randomInt == 2) {
-  	  		  		MC1_14.animation2(p);
+  	  		  		MC1_15.animation2(p);
   	  		} else
   	    		if(randomInt == 3) {
-  	    		  		MC1_14.animation3(p);
+  	    		  		MC1_15.animation3(p);
   	    		} else
   	    	  		if(randomInt == 4) {
-  	    	  		  		MC1_14.animation4(p);
+  	    	  		  		MC1_15.animation4(p);
   	    	  		} else 
   	    	  			if(randomInt == 5) {
-	    	  		  			MC1_14.animation5(p);
+	    	  		  			MC1_15.animation5(p);
   	    	  			}
   		animations.clear();
   	 }catch(Exception e) { 

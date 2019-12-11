@@ -11,7 +11,8 @@ public class Particlez implements Listener{
 	static Main plugin = Main.getPlugin(Main.class);
 	
 	  @SuppressWarnings("unused")
-	public static void explosionParticle(Player p)
+	public
+	static void explosionParticle(Player p)
 	  {
 		  if(plugin.getConfig().getBoolean("features.use-particles")) {
 			  try {
@@ -24,7 +25,8 @@ public class Particlez implements Listener{
 		  }
 	  }
 	  @SuppressWarnings("unused")
-	public static void colorParticle(Player p)
+	public
+	static void colorParticle(Player p)
 	  {
 		  if(plugin.getConfig().getBoolean("features.use-particles")) {
 			  try {
@@ -38,7 +40,8 @@ public class Particlez implements Listener{
 	  }
 	  
 	  @SuppressWarnings("unused")
-	public static void fireballParticle(Player p)
+	public
+	static void fireballParticle(Player p)
 	  {
 		  if(plugin.getConfig().getBoolean("features.use-particles")) {
 			  try {
@@ -52,7 +55,8 @@ public class Particlez implements Listener{
 	  }
 	  
 	  @SuppressWarnings("unused")
-	public static void cloudParticle(Player p)
+	public
+	static void cloudParticle(Player p)
 	  {
 		  if(plugin.getConfig().getBoolean("features.use-particles")) {
 			  try {
@@ -66,7 +70,8 @@ public class Particlez implements Listener{
 	  }
 	  
 	  @SuppressWarnings("unused")
-	public static void waterParticle(Player p)
+	public
+	static void waterParticle(Player p)
 	  {
 		  if(plugin.getConfig().getBoolean("features.use-particles")) {
 			  try {

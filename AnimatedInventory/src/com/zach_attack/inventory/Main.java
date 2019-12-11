@@ -1229,7 +1229,7 @@ public class Main extends JavaPlugin implements Listener {
 		        }, 12L);
 	    }
 	    
-	    @EventHandler
+	    @EventHandler(priority=EventPriority.MONITOR)
 	    public void onJoin(PlayerJoinEvent e)
 	    { 
 	    
@@ -1246,7 +1246,7 @@ public class Main extends JavaPlugin implements Listener {
 	      if (getConfig().getBoolean("options.updates.notify") &&
 	    	 (player.isOp()) || (player.hasPermission("animatedinv.admin"))) {
 			 if(outdatedplugin) {
-    	          Msgs.sendPrefix(player, "&c&lOutdated Plugin. &7Using v" + getDescription().getVersion() + ", while the latest is &f&l" + outdatedpluginversion);
+    	          Msgs.sendPrefix(player, "&c&lOutdated Plugin! &7Using v" + getDescription().getVersion() + ", while the latest is &f&l" + outdatedpluginversion);
 		}}}});
 	    	
 	    }// end of onPlayerGameJoin

@@ -1,7 +1,6 @@
 package com.zach_attack.inventory;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.bukkit.Bukkit;
@@ -246,8 +245,7 @@ public class Main extends JavaPlugin implements Listener {
 			}
 			
         	  if(getConfig().getBoolean("features.clearing.enable-slot-skipping")) {
-                	ArrayList<Integer> skipslot = new ArrayList<Integer>();
-                  	skipslot.addAll(getConfig().getIntegerList("features.clearing.skip-slots"));
+                	List<Integer> skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
                  if(skipslot.contains(0) || skipslot.contains(1) || skipslot.contains(2) || skipslot.contains(3) || skipslot.contains(4) || skipslot.contains(5) || skipslot.contains(6) || skipslot.contains(7) || skipslot.contains(8)) {
         		getLogger().warning("WARNING: You're choosing to skip a slot between 1-8 (Hotbar). These WONT be skipped because they are part of the animaions.");
         	  }
@@ -324,8 +322,7 @@ public class Main extends JavaPlugin implements Listener {
           	  // Erasing of Inv
           	  if(getConfig().getBoolean("features.clearing.enable-slot-skipping")) {
 
-          	ArrayList<Integer> skipslot = new ArrayList<Integer>();
-          	skipslot.addAll(getConfig().getIntegerList("features.clearing.skip-slots"));
+          	List<Integer> skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
           	for (int i = 0; i < 36; i++) {
           	  if (!skipslot.contains(i)) {
           	  p.getInventory().setItem(i, new ItemStack(Material.AIR));

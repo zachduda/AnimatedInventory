@@ -2,6 +2,7 @@ package com.zach_attack.inventory;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -47,21 +48,23 @@ public class Main extends JavaPlugin implements Listener {
 /**        > ActionAnnouncer code was borrowed with permission to make this possible. 
 	       > Please check out extended_clip's ActionAnnouncer plugin, it's amazing!              */
 	
-	public ArrayList<String> disabledclearworld = (ArrayList<String>) getConfig().getStringList("features.clearing.disabled-worlds");
-	public ArrayList<String> disabledfortuneworld = (ArrayList<String>) getConfig().getStringList("features.fortunes.disabled-worlds");
+	public List<String> disabledclearworld = getConfig().getStringList("features.clearing.disabled-worlds");
+	public List<String> disabledfortuneworld = getConfig().getStringList("features.fortunes.disabled-worlds");
 	public static boolean outdatedplugin = false;
 	public static String outdatedpluginversion = "0";
 	
-	boolean preventglitch = true;
-	String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
+	private boolean preventglitch = true;
+	private String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
 	
-	  public void onEnable() { 
+	private String version = Bukkit.getVersion().toString().replace("-SNAPSHOT", "");
+	
+	public void onEnable() { 
 		  
-		  if(!Bukkit.getBukkitVersion().contains("1.15") && !Bukkit.getBukkitVersion().contains("1.14") && !Bukkit.getVersion().contains("1.13")) {
-			  getLogger().warning("ERROR: This version of AnimatedInventory ONLY supports 1.15.X, 1.14.X, or 1.13.2. Please use AnimatedInventory v6.4 or below!"); 
-			  Bukkit.getPluginManager().disablePlugin(this);
-			  return;
-		  }
+	  if(!version.contains("1.15") && !version.contains("1.14") && !Bukkit.getVersion().contains("1.13")) {
+		  getLogger().warning("ERROR: This version of AnimatedInventory ONLY supports 1.15.X, 1.14.X, or 1.13.2. Please use AnimatedInventory v6.4 or below!"); 
+	      Bukkit.getPluginManager().disablePlugin(this);
+	      return;
+	  }
 		  
       api = new AnimatedInventoryAPI();
 	  getConfig().options().copyDefaults(true);
@@ -69,71 +72,56 @@ public class Main extends JavaPlugin implements Listener {
 	  saveConfig();
 	  
 	  configChecks();
-	  
-		 if (getServer().getPluginManager().isPluginEnabled("PerWorldInventory") && (getServer().getPluginManager().getPlugin("PerWorldInventory") != null))  {
-			 getLogger().info("PerWorldInventory has been detected.");  
-		  }
-		 
-		 updateConfig();
-		 
-	  // Big Thanks <3
-		getLogger().info("Thanks to extended_clip for the additional help.");
-		// ----------------
+	  updateConfig();
 		
-		  try {
-						if(getConfig().getInt("config-version") != 17) {
-							if(getConfig().getInt("config-version") <= 13) {
-								getLogger().warning("WARNING: Your config is EXTREMELY old. A reset is recommended.");
-								saveDefaultConfig();
-						}
-								  getLogger().info("We have added new features into your configuration.");
-						   getConfig().set("features.clearing.enable-slot-skipping", false); 
-						   getConfig().set("features.clearing.clear-armor", true);
-							getConfig().set("config-version", 17);
-							saveConfig();
-						}
-		  }catch(Exception e) {
-			  getConfig().options().copyDefaults(true);
-			  saveConfig();
-			  getLogger().info("Hm. Something strange happend when trying to find your config version.");
-			  reloadConfig();
-		  }
+	try {
+		if(getConfig().getInt("config-version") != 17) {
+			if(getConfig().getInt("config-version") <= 13) {
+				getLogger().warning("WARNING: Your config is EXTREMELY old. A reset is recommended.");
+				saveDefaultConfig();
+			}
+			
+			getLogger().info("We have added new features into your configuration.");
+			getConfig().set("features.clearing.enable-slot-skipping", false); 
+			getConfig().set("features.clearing.clear-armor", true);
+			getConfig().set("config-version", 17);
+			saveConfig();
+		}
+	}catch(Exception e) {
+		try {
+			getConfig().options().copyDefaults(true);
+			saveConfig();
+			getLogger().warning("Unable to check config-version... Restoring Missing Values...");
+			reloadConfig();
+		}catch(Exception e1) {getLogger().severe("Config version checking/updating FAILED.");}
+	}
 		  
-	        Clear.purgeCache();
-		  
-	        if(!getDescription().getVersion().toString().contains("pre")) {
-		    if(getConfig().getBoolean("options.metrics")) {
-			    Metrics metrics = new Metrics(this);
-			    try {
-		        metrics.addCustomChart(new Metrics.SimplePie("update_notifications", () -> {
-		            if(getConfig().getBoolean("options.updates.notify")) {
-		                return "Enabled";
-		            } else {
-		            	return "Disabled";
-		            }
-		        }));
-			    }catch(Exception e) { 
-			       getLogger().info("Error when setting Metrics, setting to false."); 
-			       getConfig().set("options.metrics", false); 
-			       saveConfig(); 
-			       reloadConfig(); 
-			       }
-		 	    }}
+	Clear.purgeCache();
+	
+	if(getConfig().getBoolean("options.metrics")) {
+		Metrics metrics = new Metrics(this);
+		try {
+			metrics.addCustomChart(new Metrics.SimplePie("update_notifications", () -> {
+		    if(getConfig().getBoolean("options.updates.notify")) {
+		    	return "Enabled";
+		    } else {
+		        return "Disabled";
+		    }}));
+		}catch(Exception e) { 
+			getLogger().info("Error when setting Metrics, setting to false."); 
+			getConfig().set("options.metrics", false); 
+			saveConfig(); 
+			reloadConfig();
+		}}
 		    
-
-		  if (getConfig().getBoolean("options.updates.notify")) {
-				    try
-				    {
-				    	new Updater(this).checkForUpdate();
-				    }catch(Exception e) {
-				    	getLogger().warning("There was an issue while trying to check for updates.");
-				    }
-		  } else {
-			  outdatedplugin = false;
-			  outdatedpluginversion = "0";
-		  }
-		
-		  Bukkit.getServer().getPluginManager().registerEvents(this, this);
+		if (getConfig().getBoolean("options.updates.notify")) {
+			try {
+				new Updater(this).checkForUpdate();
+			}catch(Exception e) {getLogger().warning("There was an issue while trying to check for updates.");}
+		} else {
+			outdatedplugin = false;
+			outdatedpluginversion = "0";
+		}
 		  
 		  if(getConfig().getBoolean("options.debug")) {
 		  Bukkit.getConsoleSender().sendMessage("[AnimatedInventory] [Debug] Using Minecraft Version: §a"  + Bukkit.getBukkitVersion().toString());
@@ -150,16 +138,17 @@ public class Main extends JavaPlugin implements Listener {
 				  getLogger().info("Error when trying to check players inventorys on disable event.");
 				  if(getConfig().getBoolean("options.debug")) {
 					  e.printStackTrace();
-				  }}
-				  
-			getLogger().info("Done! Ready to initialize awesome.");
+			}}
+			  
+		getServer().getPluginManager().registerEvents(this, this);
+		getLogger().info("Done! Ready to initialize awesome.");
 	 }
 	    
 	  public void onDisable() {
 		  disabledclearworld.clear();
 		   disabledfortuneworld.clear();
 		   
-		  if(!Bukkit.getBukkitVersion().contains("1.15") && !Bukkit.getBukkitVersion().contains("1.14") && !Bukkit.getBukkitVersion().contains("1.13")) {
+		  if(!version.contains("1.15") && !version.contains("1.14") && !version.contains("1.13")) {
 			  getLogger().warning("Disabled because the server is not running 1.15.X, 1.14.X, or 1.13.2..."); 
 			  return;
 		  }
@@ -181,7 +170,7 @@ public class Main extends JavaPlugin implements Listener {
 	        
 	  }
 	  
-	  public void updateConfig() {
+	  private void updateConfig() {
 		  if(getConfig().getBoolean("features.clearing.slot-switching")) {
 			  MC1_15.moveslots = true;
 		  } else {
@@ -199,7 +188,7 @@ public class Main extends JavaPlugin implements Listener {
 		  canceltpmsg = getConfig().getString("messages.tp-cancelled");
 	  }
 	  
-	public void configChecks() {		  
+	 private void configChecks() {		  
 		  if(getConfig().getBoolean("options.debug")) {
 			  getLogger().info("[Debug] Running configChecks()");
 		  }
@@ -270,44 +259,46 @@ public class Main extends JavaPlugin implements Listener {
         	}
 	  }
 	  
-	  public void noPermission(CommandSender sender)
-	  {
-		  if(sender instanceof Player) {
-			    Player p = (Player)sender;
-			    bass(p);
-		  }
+	 private void noPermission(CommandSender sender){
+		 if(sender instanceof Player) {
+			 Player p = (Player)sender;
+			 bass(p);
+		}
+		 
 	    Msgs.send(sender, getConfig().getString("messages.no-permission"));
-	  }
+	 }
 	  
-	  public void clearMessage(CommandSender sender) {
+	 protected void clearMessage(CommandSender sender) {
 		  Player p = (Player)sender;
           Msgs.sendBar(p, getConfig().getString("features.clearing.progress-msg"));
-	  }
+	 }
 	  
-	    public void saveInv(Player p){
+	 public void saveInv(Player p){
 	        ItemStack[] inv = p.getInventory().getContents();
 	        Cooldowns.inventories.put(p.getPlayer(), inv);
 	        p.updateInventory();
 	        if(getConfig().getBoolean("options.debug")) {
 	        	getLogger().info("[Debug] Saving " + p.getName() + "'s inventory in system.");
 	        }
-	    }
-	    public void loadInv(Player p){
+	 }
+	 
+	 public void loadInv(Player p){
 	    p.getInventory().clear();
 	        p.getInventory().setContents(Cooldowns.inventories.get(p.getPlayer()));
 	        p.updateInventory();
 	        if(getConfig().getBoolean("options.debug")) {
 	        	getLogger().info("[Debug] Loading back " + p.getName() + "'s inventory from system.");
 	        }
-	    }
-	    public void deleteInv(Player p){
+	 }
+	 
+	 public void deleteInv(Player p){
 	    	Cooldowns.inventories.remove(p);
 	        if(getConfig().getBoolean("options.debug")) {
 	        	getLogger().info("[Debug] Removing system data on " + p.getName() + "'s inventory.");
 	        }
 	    }
 	    
-	    public void errorMsg(Player p, int v, Exception e){
+	 protected void errorMsg(Player p, int v, Exception e){
 			  if(getConfig().getBoolean("options.debug")) {
 	       getLogger().info("----------------------[ERROR]----------------------");
 	       getLogger().info("Below is the error that occured:");
@@ -321,7 +312,7 @@ public class Main extends JavaPlugin implements Listener {
 	    }
 
 	  
-	  public void cleardone(CommandSender sender) {
+	 public void cleardone(CommandSender sender) {
 		    Player p = (Player)sender;
           Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable()
           {
@@ -368,80 +359,72 @@ public class Main extends JavaPlugin implements Listener {
           }, 4L);
 	  }
 	  
-	    public void bass(Player sender) {
+	 public void bass(Player sender) {
 	        Player p = sender;
-	        if(Bukkit.getBukkitVersion().contains("1.13") || Bukkit.getBukkitVersion().contains("1.14") || Bukkit.getBukkitVersion().contains("1.15")) {
-	            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 5.0f, 1.3f);
-	        } else {
-	        	p.playSound(p.getLocation(), Sound.valueOf("BLOCK_NOTE_BASS"), 5.0F, 1.3F);
-	        }
+	        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 5.0f, 1.3f);
 	    }
 	    
-	    public void despsound(Player sender) {
+	 public void despsound(Player sender) {
 	        Player p = sender;
 	        p.playSound(p.getLocation(), Sound.BLOCK_DISPENSER_LAUNCH, 5.0f, 0.4f);
 	    }
 	    
-	    public void fireballshootsound(Player sender) {
+	 public void fireballshootsound(Player sender) {
 	        Player p = sender;
 	        p.playSound(p.getLocation(), Sound.ENTITY_GHAST_SHOOT, 5.0f, 0.1f);
 	    }
 	    
-	    public void tick(Player sender) {
+	 public void tick(Player sender) {
 	        Player p = sender;
-	            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 5.0f, 2.0f);
+	        p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 5.0f, 2.0f);
 	    }
 
-	    public void doneding(Player sender) {
+	 public void doneding(Player sender) {
 	        Player p = sender;
-	        if(Bukkit.getBukkitVersion().contains("1.13") || Bukkit.getBukkitVersion().contains("1.14") || Bukkit.getBukkitVersion().contains("1.15")) {
-	            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
-	        } else {
-	        	p.playSound(p.getLocation(), Sound.valueOf("BLOCK_NOTE_CHIME"), 1.0F, 2.0F);
-	        }
+	        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
 	    }
 
-	    public void clearingsound(Player sender) {
+	 public void clearingsound(Player sender) {
 	        Player p = sender;
-	            p.playSound(p.getLocation(), Sound.ENTITY_DOLPHIN_EAT, 1.0f, 0.1f);
+	        p.playSound(p.getLocation(), Sound.ENTITY_DOLPHIN_EAT, 1.0f, 0.1f);
 	    }
 
-	    public void burp(Player sender) {
+	 public void burp(Player sender) {
 	        Player p = sender;
-	            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_BURP, 1.0f, 0.9f);
+	        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_BURP, 1.0f, 0.9f);
 	    }
 
-	    public void pop(Player sender) {
+	 public void pop(Player sender) {
 	        Player p = sender;
-	            p.playSound(p.getLocation(), Sound.ENTITY_CHICKEN_EGG, 2.0f, 2.0f);
+	        p.playSound(p.getLocation(), Sound.ENTITY_CHICKEN_EGG, 2.0f, 2.0f);
 	    }
 	    
-	    public void levelup(Player sender) {
+	 public void levelup(Player sender) {
 	        Player p = sender;
-	            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 2.0f, 2.0f);
+	        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 2.0f, 2.0f);
 	    }
 
-	    public void tntmovesound(Player sender) {
+	 public void tntmovesound(Player sender) {
 	        Player p = sender;
-	          p.playSound(p.getLocation(), Sound.ENTITY_MINECART_INSIDE, 1.0f, 1.4f);
+	        p.playSound(p.getLocation(), Sound.ENTITY_MINECART_INSIDE, 1.0f, 1.4f);
 	    }
 
-	    public void tntmovesoundstop(Player sender) {
+	 public void tntmovesoundstop(Player sender) {
 	        Player p = sender;
-	            p.stopSound(Sound.ENTITY_MINECART_INSIDE);
+	        p.stopSound(Sound.ENTITY_MINECART_INSIDE);
 	    }
 
-	    public void tntplacesound(Player sender) {
+	 public void tntplacesound(Player sender) {
 	        Player p = sender;
 	            p.playSound(p.getLocation(), Sound.BLOCK_GRASS_PLACE, 2.0f, 2.0f);
 	    }
 
-	    public void boomsound(Player sender) {
+	 public void boomsound(Player sender) {
 	        Player p = sender;
 	            p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 2.0f);
 	    }
 	    
-	    @EventHandler(priority = EventPriority.HIGHEST) //ovveride
+	    @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
 	    public void onCommandPreProcess(PlayerCommandPreprocessEvent event){
 	    if(getConfig().getBoolean("options.commands.clear-override")) {
 	    		if(event.getMessage().toLowerCase().equalsIgnoreCase("/clear")){
@@ -1169,6 +1152,7 @@ public class Main extends JavaPlugin implements Listener {
 	    	}
 	    }
 	    
+	    	
 	    @EventHandler(priority = EventPriority.HIGHEST)
 	    public void onTP(PlayerTeleportEvent e) {
 	    	if(!preventglitch) {

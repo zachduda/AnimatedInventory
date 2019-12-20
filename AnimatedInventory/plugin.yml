@@ -1,11 +1,10 @@
 name: AnimatedInventory
-version: 7.5
+version: 7.5.1
 author: zach_attack
 website: https://www.spigotmc.org/resources/animatedinventory.59785/
 main: com.zach_attack.inventory.Main
 description: Animates players inventories.
 api-version: 1.13
-softdepend: [PUUIDS]
 commands:
   ai:
     description: Main command for AnimatedInventory.

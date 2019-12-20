@@ -1,11 +1,9 @@
 package com.zach_attack.inventory.api;
 
-import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import com.zach_attack.inventory.Clear;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.Main;
-import com.zach_attack.inventory.Msgs;
 import com.zach_attack.inventory.support.MC1_15;
 
 public final class AnimatedInventoryAPI {
@@ -93,14 +91,6 @@ public final class AnimatedInventoryAPI {
 		Cooldowns.activefortune.put(p.getPlayer(), p.getName()); 
 	}}
 	
-	public static void sendPluginMsg(CommandSender sender, String msg, boolean sound) {
-		Msgs.send(sender, msg);
-		if(sender instanceof Player) {
-			 Player p = (Player)sender;
-		plugin.pop(p);
-		}
-	}
-
 	public String getPluginVersion() {
 		return plugin.getDescription().getVersion().toString();
 	}

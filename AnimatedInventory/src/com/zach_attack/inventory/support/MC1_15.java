@@ -26,6 +26,10 @@ public class MC1_15 implements Listener{
 	   public static boolean moveslots = true;
 	  
 		public static void emergencyRemove() {
+			if(Bukkit.getOnlinePlayers().size() == 0) {
+				return;
+			}
+			
 			try {
 			  final ItemStack one = new ItemStack(Material.LIME_CONCRETE);
 			    ItemMeta onem = one.getItemMeta();

@@ -47,19 +47,17 @@ public class Main extends JavaPlugin implements Listener {
 
     public AnimatedInventoryAPI api;
 
-    public List < String > disabledclearworld = getConfig().getStringList("features.clearing.disabled-worlds");
-    public List < String > disabledfortuneworld = getConfig().getStringList("features.fortunes.disabled-worlds");
+    public List <String> disabledclearworld = getConfig().getStringList("features.clearing.disabled-worlds");
+    public List <String> disabledfortuneworld = getConfig().getStringList("features.fortunes.disabled-worlds");
 
     private boolean preventglitch = true;
     private String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
-
-    final private boolean bukkit = false;
 
     private boolean debug = false;
 
     private String version = Bukkit.getVersion().toString().replace("-SNAPSHOT", "");
 
-    public void onEnable() {
+	public void onEnable() {
 
         if (!version.contains("1.15") && !version.contains("1.14") && !Bukkit.getVersion().contains("1.13")) {
             getLogger().warning("ERROR: This version of AnimatedInventory ONLY supports 1.15.X, 1.14.X, or 1.13.2. Please use AnimatedInventory v6.4 or below!");
@@ -101,7 +99,7 @@ public class Main extends JavaPlugin implements Listener {
 
         Clear.purgeCache();
 
-        if (bukkit || getConfig().getBoolean("options.metrics")) {
+        if (getConfig().getBoolean("options.metrics")) {
             Metrics metrics = new Metrics(this);
             try {
                 metrics.addCustomChart(new Metrics.SimplePie("update_notifications", () -> {
@@ -112,11 +110,7 @@ public class Main extends JavaPlugin implements Listener {
                     }
                 }));
                 metrics.addCustomChart(new Metrics.SimplePie("download_source", () -> {
-                    if (!bukkit) {
-                        return "Spigot / Songoda";
-                    } else {
-                        return "Bukkit";
-                    }
+                        return "Spigot";   // CHANGE BEFORE RELEASES
                 }));
             } catch (Exception e) {
                 getLogger().info("Error when setting Metrics, setting to false.");
@@ -124,12 +118,8 @@ public class Main extends JavaPlugin implements Listener {
                 saveConfig();
                 reloadConfig();
             }
-        } else {
-            if (debug) {
-                getLogger().info("From Bukkit & Metrics are configured as OFF. Not sending any metrics.");
-            }
         }
-
+	
         if (getConfig().getBoolean("options.updates.notify")) {
             try {
                 new Updater(this).checkForUpdate();

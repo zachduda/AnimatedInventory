@@ -9,8 +9,6 @@ import com.zach_attack.inventory.Main;
 public final class AnimatedInventoryAPI {
 	private final static Main plugin = Main.getPlugin(Main.class);
 	
-	public static boolean debugMode = plugin.getConfig().getBoolean("options.debug") ?true :false;
-	
 	public static boolean isPlayerClearing(Player p) {
 	
 		if(Cooldowns.active.containsKey(p.getPlayer())){

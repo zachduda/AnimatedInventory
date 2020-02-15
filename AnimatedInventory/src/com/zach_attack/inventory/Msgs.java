@@ -5,7 +5,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 public class Msgs {
-	static Main plugin = Main.getPlugin(Main.class);
+	private static Main plugin = Main.getPlugin(Main.class);
 	
 	static void send(CommandSender sender, String msg) {
 	    String prefix = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages.prefix"));

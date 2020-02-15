@@ -9,10 +9,9 @@ import org.bukkit.inventory.ItemStack;
 
 import com.zach_attack.inventory.Main;
 
-	public class Cooldowns implements Listener {
+public class Cooldowns implements Listener {
 
-		static Main plugin = Main.getPlugin(Main.class);
-
+		private static Main plugin = Main.getPlugin(Main.class);
 
 		public static HashMap<Player, String> cooldown = new HashMap<Player, String>();
 		public static HashMap<Player, String> filecooldown = new HashMap<Player, String>();

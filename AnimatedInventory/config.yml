@@ -1,7 +1,7 @@
 messages:
   prefix: '&8[&b&lA&r&bnimated&f&lI&r&fnv&8]'
   no-permission: '&cYou don''t have permission for that.'
-  reload: '&2&l✓ &aConfiguration Reloaded.'
+  reload: '&a&l✓ &fConfiguration Reloaded.'
   not-a-command: '&cCouldn''t find the command: &f%cmd%'
   not-online: '&c&lOops! &f%player% is not online to do that.'
   no-player: '&c&lOops! &fYou must specify a player to do that to.'
@@ -100,7 +100,6 @@ options:
     clear-override: true
   updates:
     notify: true
-    download: true
   metrics: true
   debug: false
 config-version: 17

@@ -100,6 +100,7 @@ options:
     clear-override: true
   updates:
     notify: true
+    download: true
   metrics: true
   debug: false
 config-version: 17

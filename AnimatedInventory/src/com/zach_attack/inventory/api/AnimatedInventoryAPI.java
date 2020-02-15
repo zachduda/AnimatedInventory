@@ -3,11 +3,13 @@ package com.zach_attack.inventory.api;
 import org.bukkit.entity.Player;
 import com.zach_attack.inventory.Clear;
 import com.zach_attack.inventory.Cooldowns;
+import com.zach_attack.inventory.MC1_15;
 import com.zach_attack.inventory.Main;
-import com.zach_attack.inventory.support.MC1_15;
 
 public final class AnimatedInventoryAPI {
 	private final static Main plugin = Main.getPlugin(Main.class);
+	
+	public static boolean debugMode = plugin.getConfig().getBoolean("options.debug") ?true :false;
 	
 	public static boolean isPlayerClearing(Player p) {
 	
@@ -92,7 +94,7 @@ public final class AnimatedInventoryAPI {
 	}}
 	
 	public String getPluginVersion() {
-		return plugin.getDescription().getVersion().toString();
+		return plugin.getDescription().getVersion();
 	}
 	
 }

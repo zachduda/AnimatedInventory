@@ -12,7 +12,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import com.zach_attack.inventory.api.PlayerClearInventoryEvent;
-import com.zach_attack.inventory.support.MC1_15;
 
 public class Clear {
 	static Main plugin = Main.getPlugin(Main.class);

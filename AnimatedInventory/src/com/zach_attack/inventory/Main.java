@@ -35,7 +35,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.zach_attack.inventory.other.Updater;
-import com.zach_attack.inventory.support.MC1_15;
 import com.zach_attack.inventory.other.Metrics;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.api.AnimatedInventoryAPI;
@@ -49,11 +48,13 @@ public class Main extends JavaPlugin implements Listener {
 	
 	public List<String> disabledclearworld = getConfig().getStringList("features.clearing.disabled-worlds");
 	public List<String> disabledfortuneworld = getConfig().getStringList("features.fortunes.disabled-worlds");
-	public static boolean outdatedplugin = false;
-	public static String outdatedpluginversion = "0";
 	
 	private boolean preventglitch = true;
 	private String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
+	
+	final private boolean bukkit = false;
+	
+	private boolean debug = false;
 	
 	private String version = Bukkit.getVersion().toString().replace("-SNAPSHOT", "");
 	
@@ -97,7 +98,7 @@ public class Main extends JavaPlugin implements Listener {
 		  
 	Clear.purgeCache();
 	
-	if(getConfig().getBoolean("options.metrics")) {
+	if(bukkit || getConfig().getBoolean("options.metrics")) {
 		Metrics metrics = new Metrics(this);
 		try {
 			metrics.addCustomChart(new Metrics.SimplePie("update_notifications", () -> {
@@ -106,23 +107,59 @@ public class Main extends JavaPlugin implements Listener {
 		    } else {
 		        return "Disabled";
 		    }}));
+			metrics.addCustomChart(new Metrics.SimplePie("download_source", () -> {
+			    if(!bukkit) {
+			    	return "Spigot / Songoda";
+			    } else {
+			        return "Bukkit";
+			    }}));
 		}catch(Exception e) { 
 			getLogger().info("Error when setting Metrics, setting to false."); 
 			getConfig().set("options.metrics", false); 
 			saveConfig(); 
 			reloadConfig();
-		}}
+		}} else {
+			if(debug) {
+				getLogger().info("From Bukkit and Metrics are configured as OFF. Not sending any metrics.");
+			}
+		}
 		    
-		if (getConfig().getBoolean("options.updates.notify")) {
-			try {
-				new Updater(this).checkForUpdate();
-			}catch(Exception e) {getLogger().warning("There was an issue while trying to check for updates.");}
+		if (!bukkit) {
+			Updater updater = new Updater(this, getFile(), Updater.UpdateType.CHECK_DOWNLOAD, debug);
+			if(updater.getResult() == Updater.Result.SUCCESS) {
+				getLogger().info("Automatically updated to AnimatedInventory " + updater.getVersion() + ".");
+			}
+			if(debug) {
+				getLogger().info("This version of AnimatedInventory was downloaded from Spigot / Songoda");
+			}
 		} else {
-			outdatedplugin = false;
-			outdatedpluginversion = "0";
+			if(debug) {
+				getLogger().info("This version of AnimatedInventory was downloaded from Bukkit.org");
+			}
+			
+			if(getConfig().getBoolean("options.updates.notify") && getConfig().getBoolean("options.updates.download")) {
+				Updater updater = new Updater(this, getFile(), Updater.UpdateType.CHECK_DOWNLOAD, debug);
+				if(updater.getResult() == Updater.Result.SUCCESS) {
+					getLogger().info("Automatically updated to AnimatedInventory " + updater.getVersion() + ".");
+				}
+			} else if(getConfig().getBoolean("options.updates.notify")) {
+				Updater updater = new Updater(this, getFile(), Updater.UpdateType.VERSION_CHECK, debug);
+				if(updater.getResult() == Updater.Result.SUCCESS) {
+					Msgs.sendPrefix(getServer().getConsoleSender(), "&e&lHeads Up! &fA new version of AnimatedInventory is available for download.");
+				}
+			} else if(getConfig().getBoolean("options.updates.download")) {
+				Updater updater = new Updater(this, getFile(), Updater.UpdateType.CHECK_DOWNLOAD, debug);
+				if(updater.getResult() == Updater.Result.SUCCESS) {
+					Msgs.sendPrefix(getServer().getConsoleSender(), "&e&lHeads Up! &fA new version of AnimatedInventory is available for download.");
+				}
+			} else {
+				if(debug) {
+					getLogger().info("Update Checking has been disabled.");
+				}
+			}
 		}
 		  
-		  if(getConfig().getBoolean("options.debug")) {
+		  if(debug) {
 		  Bukkit.getConsoleSender().sendMessage("[AnimatedInventory] [Debug] Using Minecraft Version: §a"  + Bukkit.getBukkitVersion().toString());
 		  }
 		  
@@ -135,7 +172,7 @@ public class Main extends JavaPlugin implements Listener {
 	            	 MC1_15.emergencyRemove();
 			  } catch(Exception e) {
 				  getLogger().info("Error when trying to check players inventorys on disable event.");
-				  if(getConfig().getBoolean("options.debug")) {
+				  if(debug) {
 					  e.printStackTrace();
 			}}
 			  
@@ -156,7 +193,7 @@ public class Main extends JavaPlugin implements Listener {
             	 MC1_15.emergencyRemove();
 		  } catch(Exception e) {
 			  getLogger().info("Error when trying to check players inventorys on disable event.");
-			  if(getConfig().getBoolean("options.debug")) {
+			  if(debug) {
 				  e.printStackTrace();
 			  }
 		  }
@@ -185,10 +222,12 @@ public class Main extends JavaPlugin implements Listener {
 		  }
 		  
 		  canceltpmsg = getConfig().getString("messages.tp-cancelled");
+		  
+		  debug = getConfig().getBoolean("options.debug");
 	  }
 	  
 	 private void configChecks() {		  
-		  if(getConfig().getBoolean("options.debug")) {
+		  if(debug) {
 			  getLogger().info("[Debug] Running configChecks()");
 		  }
 		  
@@ -257,7 +296,7 @@ public class Main extends JavaPlugin implements Listener {
         	}
 	  }
 	  
-	 private void noPermission(CommandSender sender){
+	 void noPermission(CommandSender sender){
 		 if(sender instanceof Player) {
 			 Player p = (Player)sender;
 			 bass(p);
@@ -266,38 +305,38 @@ public class Main extends JavaPlugin implements Listener {
 	    Msgs.send(sender, getConfig().getString("messages.no-permission"));
 	 }
 	  
-	 protected void clearMessage(CommandSender sender) {
+	 void clearMessage(CommandSender sender) {
 		  Player p = (Player)sender;
           Msgs.sendBar(p, getConfig().getString("features.clearing.progress-msg"));
 	 }
 	  
-	 public void saveInv(Player p){
+	 void saveInv(Player p){
 	        ItemStack[] inv = p.getInventory().getContents();
 	        Cooldowns.inventories.put(p.getPlayer(), inv);
 	        p.updateInventory();
-	        if(getConfig().getBoolean("options.debug")) {
+	        if(debug) {
 	        	getLogger().info("[Debug] Saving " + p.getName() + "'s inventory in system.");
 	        }
 	 }
 	 
-	 public void loadInv(Player p){
+	 void loadInv(Player p){
 	    p.getInventory().clear();
 	        p.getInventory().setContents(Cooldowns.inventories.get(p.getPlayer()));
 	        p.updateInventory();
-	        if(getConfig().getBoolean("options.debug")) {
+	        if(debug) {
 	        	getLogger().info("[Debug] Loading back " + p.getName() + "'s inventory from system.");
 	        }
 	 }
 	 
-	 public void deleteInv(Player p){
+	 void deleteInv(Player p){
 	    	Cooldowns.inventories.remove(p);
-	        if(getConfig().getBoolean("options.debug")) {
+	        if(debug) {
 	        	getLogger().info("[Debug] Removing system data on " + p.getName() + "'s inventory.");
 	        }
 	    }
 	    
-	 protected void errorMsg(Player p, int v, Exception e){
-			  if(getConfig().getBoolean("options.debug")) {
+	 void errorMsg(Player p, int v, Exception e){
+			  if(debug) {
 	       getLogger().info("----------------------[ERROR]----------------------");
 	       getLogger().info("Below is the error that occured:");
 	       e.printStackTrace();
@@ -310,7 +349,7 @@ public class Main extends JavaPlugin implements Listener {
 	    }
 
 	  
-	 public void cleardone(CommandSender sender) {
+	 void cleardone(CommandSender sender) {
 		    Player p = (Player)sender;
           Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable()
           {
@@ -356,70 +395,64 @@ public class Main extends JavaPlugin implements Listener {
           }, 4L);
 	  }
 	  
-	 public void bass(Player sender) {
+	 void bass(Player sender) {
 	        Player p = sender;
 	        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 5.0f, 1.3f);
 	    }
 	    
-	 public void despsound(Player sender) {
+	 void despsound(Player sender) {
 	        Player p = sender;
 	        p.playSound(p.getLocation(), Sound.BLOCK_DISPENSER_LAUNCH, 5.0f, 0.4f);
 	    }
 	    
-	 public void fireballshootsound(Player sender) {
+	 void fireballshootsound(Player sender) {
 	        Player p = sender;
 	        p.playSound(p.getLocation(), Sound.ENTITY_GHAST_SHOOT, 5.0f, 0.1f);
 	    }
 	    
-	 public void tick(Player sender) {
-	        Player p = sender;
+	 void tick(Player p) {
 	        p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 5.0f, 2.0f);
 	    }
 
-	 public void doneding(Player sender) {
-	        Player p = sender;
+	 void doneding(Player p) {
 	        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 2.0f);
 	    }
 
-	 public void clearingsound(Player sender) {
-	        Player p = sender;
+	 void clearingsound(Player p) {
 	        p.playSound(p.getLocation(), Sound.ENTITY_DOLPHIN_EAT, 1.0f, 0.1f);
 	    }
 
-	 public void burp(Player sender) {
-	        Player p = sender;
+	 void burp(Player p) {
 	        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_BURP, 1.0f, 0.9f);
 	    }
 
-	 public void pop(Player sender) {
-	        Player p = sender;
+	 void pop(Player p) {
 	        p.playSound(p.getLocation(), Sound.ENTITY_CHICKEN_EGG, 2.0f, 2.0f);
 	    }
 	    
-	 public void levelup(Player sender) {
-	        Player p = sender;
+	 void levelup(Player p) {
 	        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 2.0f, 2.0f);
 	    }
 
-	 public void tntmovesound(Player sender) {
-	        Player p = sender;
+	 void tntmovesound(Player p) {
 	        p.playSound(p.getLocation(), Sound.ENTITY_MINECART_INSIDE, 1.0f, 1.4f);
 	    }
 
-	 public void tntmovesoundstop(Player sender) {
-	        Player p = sender;
+	 void tntmovesoundstop(Player p) {
 	        p.stopSound(Sound.ENTITY_MINECART_INSIDE);
 	    }
 
-	 public void tntplacesound(Player sender) {
-	        Player p = sender;
+	 void tntplacesound(Player p) {
 	            p.playSound(p.getLocation(), Sound.BLOCK_GRASS_PLACE, 2.0f, 2.0f);
 	    }
 
-	 public void boomsound(Player sender) {
-	        Player p = sender;
-	            p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 2.0f);
-	    }
+	 void boomsound(Player p) {
+	           p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 2.0f);
+	 }
+	 
+	 void waterAmb(Player p) {
+	        p.playSound(p.getLocation(), Sound.BLOCK_WATER_AMBIENT, 5.0F, 1.0F);
+	   }
 	    
 	    @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
 	    public void onCommandPreProcess(PlayerCommandPreprocessEvent event){
@@ -691,7 +724,7 @@ public class Main extends JavaPlugin implements Listener {
 	    	    			Msgs.send(sender, getConfig().getString("messages.backup-error"));
 	    	    			bass(p);
 	    	    			getLogger().info("Hm. We were unable to restore " + p.getName() + "'s backup.");
-	    	    			if(getConfig().getBoolean("options.debug")) {
+	    	    			if(debug) {
 	    	    				getLogger().info("[Debug] Error below: ------------------------------");
 	    	    				e.printStackTrace();
 	    	    				getLogger().info("[Debug] End of Error ------------------------------");
@@ -717,7 +750,7 @@ public class Main extends JavaPlugin implements Listener {
 	    			Msgs.send(sender, getConfig().getString("messages.backup-error"));
 	    			bass(p);
 	    			getLogger().info("Hm. Something went wrong when trying to get " + p.getName() + "'s cache files.");
-	    			if(getConfig().getBoolean("options.debug")) {
+	    			if(debug) {
 	    				getLogger().info("[Debug] Error below: ------------------------------");
 	    				e.printStackTrace();
 	    				getLogger().info("[Debug] End of Error ------------------------------");
@@ -750,7 +783,7 @@ public class Main extends JavaPlugin implements Listener {
 				   Player p = (Player)sender; 
 			       pop(p);
 			    }
-			       if(getConfig().getBoolean("options.debug")) {
+			       if(debug) {
 			       getConfig().set("options.debug", false);
 			       saveConfig();
 			       reloadConfig();
@@ -760,7 +793,7 @@ public class Main extends JavaPlugin implements Listener {
 			       saveConfig();
 			       reloadConfig();
 				    Msgs.send(sender, "&a&lDebug On. &fWe have enabled debug mode.");
-				    if(getConfig().getBoolean("options.debug")) {
+				    if(debug) {
 				    getLogger().info("[Debug] Now enabled via the /ai debug command.");
 				    }
 			       }
@@ -819,7 +852,7 @@ public class Main extends JavaPlugin implements Listener {
 					disabledfortuneworld.addAll(getConfig().getStringList("features.fortunes.disabled-worlds"));
 					updateConfig();
 		    	 Msgs.send(sender, getConfig().getString("messages.reload"));
-		    	 if(getConfig().getBoolean("options.debug")) {
+		    	 if(debug) {
 				   getLogger().info("[Debug] Disabled Clear Worlds: " + disabledclearworld.toString());
 				   getLogger().info("[Debug] Disabled Fortune Worlds: " + disabledfortuneworld.toString());
 		    	 }
@@ -875,7 +908,7 @@ public class Main extends JavaPlugin implements Listener {
 		    	  	}
 		    	  	
 		    		    			Cooldowns.activefortune.put(p, p.getName());
-		    		    			if(getConfig().getBoolean("options.debug")) {
+		    		    			if(debug) {
 		    		    				getLogger().info("[Debug] Self induced fortune: " + p.getName());
 		    		    			}
 		    	     		    	 try {
@@ -998,7 +1031,7 @@ public class Main extends JavaPlugin implements Listener {
 		    	    		     	bass(p);
 		    	    			}
 		    	    			getLogger().info("Hm. We were unable to restore " + target.getName() + "'s backup.");
-		    	    			if(getConfig().getBoolean("options.debug")) {
+		    	    			if(debug) {
 		    	    				getLogger().info("[Debug] Error below: ------------------------------");
 		    	    				e.printStackTrace();
 		    	    				getLogger().info("[Debug] End of Error ------------------------------");
@@ -1033,7 +1066,7 @@ public class Main extends JavaPlugin implements Listener {
     	    		     	bass(p);
     	    			}
     	    			Msgs.send(sender, "&c&lHm. &fWe were not able to do that to &7" + target.getName());
-    	    			if(getConfig().getBoolean("options.debug")) {
+    	    			if(debug) {
     	    				getLogger().info("[Debug] An error occured. See below: ------------------");
     	    				finalerr.printStackTrace();
     	    				getLogger().info("[Debug] End of Error. ---------------------------------");
@@ -1213,22 +1246,14 @@ public class Main extends JavaPlugin implements Listener {
 	    @EventHandler(priority=EventPriority.MONITOR)
 	    public void onJoin(PlayerJoinEvent e)
 	    { 
-	    
 	    Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-	    final Player player = e.getPlayer();
+	    	final Player player = e.getPlayer();
 	    
-	    // This is a dev-join message sent to me only. It's to help me understand which servers support my work <3
-	      if (player.getUniqueId().toString().equals("6191ff85-e092-4e9a-94bd-63df409c2079")) {
-	        player.sendMessage(ChatColor.GRAY + "This server is running " + ChatColor.WHITE + "AnimatedInventory " + ChatColor.GOLD + "v" + getDescription().getVersion() + ChatColor.GRAY + " for " + Bukkit.getBukkitVersion().replace("-SNAPSHOT", ""));
-	      }
-	   // I kindly ask you leave the above portion in ANY modification of this plugin. Thank You!
-
-	      if(!getDescription().getVersion().toString().contains("pre")) {
-	      if (getConfig().getBoolean("options.updates.notify") &&
-	    	 (player.isOp()) || (player.hasPermission("animatedinv.admin"))) {
-			 if(outdatedplugin) {
-    	          Msgs.sendPrefix(player, "&c&lOutdated Plugin! &7Using v" + getDescription().getVersion() + ", while the latest is &f&l" + outdatedpluginversion);
-		}}}});
-	    	
-	    }// end of onPlayerGameJoin
+	    		// This is a dev-join message sent to me only. It's to help me understand which servers support my work <3
+	      		if (player.getUniqueId().toString().equals("6191ff85-e092-4e9a-94bd-63df409c2079")) {
+	    	  		player.sendMessage(ChatColor.GRAY + "This server is running " + ChatColor.WHITE + "AnimatedInventory " + ChatColor.GOLD + "v" + getDescription().getVersion() + ChatColor.GRAY + " for " + Bukkit.getBukkitVersion().replace("-SNAPSHOT", ""));
+	      		}
+	      		// I kindly ask you leave the above portion in ANY modification of this plugin. Thank You!
+			});
+	    }
 }

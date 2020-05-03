@@ -35,7 +35,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.zach_attack.inventory.other.Updater;
-import com.zach_attack.inventory.other.Metrics;
+import com.zach_attack.inventory.other.MetricsLite;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.api.AnimatedInventoryAPI;
 
@@ -100,18 +100,8 @@ public class Main extends JavaPlugin implements Listener {
         Clear.purgeCache();
 
         if (getConfig().getBoolean("options.metrics")) {
-            Metrics metrics = new Metrics(this);
-            try {
-                metrics.addCustomChart(new Metrics.SimplePie("update_notifications", () -> {
-                    if (getConfig().getBoolean("options.updates.notify")) {
-                        return "Enabled";
-                    } else {
-                        return "Disabled";
-                    }
-                }));
-                metrics.addCustomChart(new Metrics.SimplePie("download_source", () -> {
-                        return "Spigot";   // CHANGE BEFORE RELEASES
-                }));
+        	try {
+        		new MetricsLite(this, 3079);
             } catch (Exception e) {
                 getLogger().info("Error when setting Metrics, setting to false.");
                 getConfig().set("options.metrics", false);

@@ -332,7 +332,7 @@ public class Main extends JavaPlugin implements Listener {
                 // Erasing of Inv
                 if (getConfig().getBoolean("features.clearing.enable-slot-skipping")) {
 
-                    List < Integer > skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
+                    List <Integer> skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
                     for (int i = 0; i < 36; i++) {
                         if (!skipslot.contains(i)) {
                             p.getInventory().setItem(i, new ItemStack(Material.AIR));

@@ -40,7 +40,7 @@ public class Cooldowns implements Listener {
 		   }
 		   
 		   boolean debug =  plugin.getConfig().getBoolean("options.debug");
-		   if(!Cooldowns.isBeinghurt.containsKey(p.getPlayer())) {
+		   if(!isBeinghurt.containsKey(p.getPlayer())) {
 			   if(debug) {
 				   plugin.getLogger().info("[Debug] Player not on isBeingHurt hashmap. notHurt() check passed.");
 			   }
@@ -86,7 +86,7 @@ public class Cooldowns implements Listener {
 				    if (!plugin.getConfig().getString("options.cooldowns.time").equalsIgnoreCase("none")
 				    		&& !(plugin.getConfig().getInt("options.cooldowns.time") == 0))
 				    {
-		        Cooldowns.cooldown.remove(p.getPlayer());
+				    	cooldown.remove(p.getPlayer());
 				    }
 		      }
 		    }, plugin.getConfig().getInt("options.cooldowns.time") * 20);
@@ -144,15 +144,16 @@ public class Cooldowns implements Listener {
 		    {
 		      public void run()
 		      {
-		        Cooldowns.active.remove(p.getPlayer());
+		    	  active.remove(p.getPlayer());
                 
     		    if (plugin.getConfig().getString("options.cooldowns.time").equalsIgnoreCase("none")
     		    		|| plugin.getConfig().getInt("options.cooldowns.time") == 0 || !plugin.getConfig().getBoolean("options.cooldowns.enabled"))
     		    { 
                    return;
     		    }
-                  Cooldowns.cooldown.put(p, p.getName());
-                Cooldowns.startCooldown(p); }
+                  cooldown.put(p, p.getName());
+                  startCooldown(p);
+                }
     		    
 		    }, 10L);
 			  }catch(Exception e){
@@ -164,15 +165,15 @@ public class Cooldowns implements Listener {
 		  {
 			  
 			  try {
-		        Cooldowns.activefortune.remove(p.getPlayer());
+		        activefortune.remove(p.getPlayer());
                 
     		    if (plugin.getConfig().getString("options.cooldowns.time").equalsIgnoreCase("none")
     		    		|| plugin.getConfig().getInt("options.cooldowns.time") == 0 || !plugin.getConfig().getBoolean("options.cooldowns.enabled"))
     		    { 
                    return;
     		    }
-                  Cooldowns.cooldown.put(p, p.getName());
-                Cooldowns.startCooldown(p); 
+                  cooldown.put(p, p.getName());
+                  startCooldown(p); 
 			  }catch(Exception e){
 				  System.out.print("[AnimatedInventory] Error! Couldn't exceute the active timer properly.");
 				  }

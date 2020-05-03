@@ -14,7 +14,7 @@ import org.bukkit.inventory.ItemStack;
 import com.zach_attack.inventory.api.PlayerClearInventoryEvent;
 
 public class Clear {
-	static Main plugin = Main.getPlugin(Main.class);
+	private static Main plugin = Main.getPlugin(Main.class);
 
 	static void purgeCache() {
 		 Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -65,7 +65,7 @@ public class Clear {
 	}
 	
     @SuppressWarnings("unchecked")
-	public static void undoClear(Player p) {
+	static void undoClear(Player p) {
 		if(!plugin.getConfig().getBoolean("features.clearing.inv-backup.enabled")) {
 			return;
 		}
@@ -157,8 +157,8 @@ public class Clear {
 	}
 
 	public static void go(Player p) {
-		boolean debug = plugin.getConfig().getBoolean("options.debug");
-		ArrayList<Integer> animations = new ArrayList<Integer>();
+		final boolean debug = plugin.getConfig().getBoolean("options.debug");
+		List<Integer> animations = new ArrayList<Integer>();
      
      Cooldowns.active.put(p, p.getName());
      plugin.clearMessage(p);

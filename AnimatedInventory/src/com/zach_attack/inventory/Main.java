@@ -285,7 +285,7 @@ public class Main extends JavaPlugin implements Listener {
 
     void saveInv(Player p) {
         ItemStack[] inv = p.getInventory().getContents();
-        Cooldowns.inventories.put(p.getPlayer(), inv);
+        Cooldowns.inventories.put(p, inv);
         p.updateInventory();
         if (debug) {
             getLogger().info("[Debug] Saving " + p.getName() + "'s inventory in system.");
@@ -294,7 +294,7 @@ public class Main extends JavaPlugin implements Listener {
 
     void loadInv(Player p) {
         p.getInventory().clear();
-        p.getInventory().setContents(Cooldowns.inventories.get(p.getPlayer()));
+        p.getInventory().setContents(Cooldowns.inventories.get(p));
         p.updateInventory();
         if (debug) {
             getLogger().info("[Debug] Loading back " + p.getName() + "'s inventory from system.");
@@ -428,26 +428,27 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
-    public void onCommandPreProcess(PlayerCommandPreprocessEvent event) {
+    public void onCommandPreProcess(PlayerCommandPreprocessEvent e) {
+    	final Player p = e.getPlayer();
         if (getConfig().getBoolean("options.commands.clear-override")) {
-            if (event.getMessage().toLowerCase().equalsIgnoreCase("/clear")) {
-                event.setCancelled(true);
-                Bukkit.dispatchCommand(event.getPlayer(), "ai clear");
+            if (e.getMessage().toLowerCase().equalsIgnoreCase("/clear")) {
+                e.setCancelled(true);
+                Bukkit.dispatchCommand(p, "ai clear");
                 return;
             }
-            if (event.getMessage().toLowerCase().equalsIgnoreCase("/ci")) {
-                event.setCancelled(true);
-                Bukkit.dispatchCommand(event.getPlayer(), "ai clear");
+            if (e.getMessage().toLowerCase().equalsIgnoreCase("/ci")) {
+                e.setCancelled(true);
+                Bukkit.dispatchCommand(p, "ai clear");
                 return;
             }
-            if (event.getMessage().toLowerCase().contains("/ci ")) {
-                event.setCancelled(true);
-                Bukkit.dispatchCommand(event.getPlayer(), "ai clear " + event.getMessage().replace("/ci ", ""));
+            if (e.getMessage().toLowerCase().contains("/ci ")) {
+                e.setCancelled(true);
+                Bukkit.dispatchCommand(p, "ai clear " + e.getMessage().replace("/ci ", ""));
                 return;
             }
-            if (event.getMessage().toLowerCase().contains("/clear ")) {
-                event.setCancelled(true);
-                Bukkit.dispatchCommand(event.getPlayer(), "ai clear " + event.getMessage().replace("/clear ", ""));
+            if (e.getMessage().toLowerCase().contains("/clear ")) {
+                e.setCancelled(true);
+                Bukkit.dispatchCommand(p, "ai clear " + e.getMessage().replace("/clear ", ""));
                 return;
             }
         }
@@ -461,11 +462,11 @@ public class Main extends JavaPlugin implements Listener {
 
         if (event.getEntity() instanceof Player) {
             Player p = (Player) event.getEntity();
-            if (Cooldowns.activefortune.containsKey(p.getPlayer())) {
+            if (Cooldowns.activefortune.containsKey(p)) {
                 event.setCancelled(true);
                 return;
             }
-            if (Cooldowns.active.containsKey(p.getPlayer())) {
+            if (Cooldowns.active.containsKey(p)) {
                 event.setCancelled(true);
                 return;
             }
@@ -473,17 +474,18 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
-    public void onWater(PlayerBucketEmptyEvent event) {
+    public void onWater(PlayerBucketEmptyEvent e) {
         if (!getConfig().getBoolean("features.prevent-place")) {
             return;
         }
 
-        if (Cooldowns.activefortune.containsKey(event.getPlayer())) {
-            event.setCancelled(true);
+        final Player p = e.getPlayer();
+        if (Cooldowns.activefortune.containsKey(p)) {
+            e.setCancelled(true);
             return;
         }
-        if (Cooldowns.active.containsKey(event.getPlayer())) {
-            event.setCancelled(true);
+        if (Cooldowns.active.containsKey(p)) {
+            e.setCancelled(true);
             return;
         }
     }
@@ -500,7 +502,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
-        Player p = (Player) e.getPlayer();
+        Player p = (Player) e;
         if (getConfig().getBoolean("features.prevent-drop")) {
             if (Cooldowns.active.containsKey(p) || Cooldowns.activefortune.containsKey(p)) {
                 e.setCancelled(true);
@@ -513,7 +515,7 @@ public class Main extends JavaPlugin implements Listener {
         if (!getConfig().getBoolean("features.prevent-drop")) {
             return;
         }
-        final Player p = event.getEntity().getPlayer();
+        final Player p = event.getEntity();
         if (Cooldowns.activefortune.containsKey(p) || Cooldowns.active.containsKey(p)) {
 
             if (!event.getKeepInventory()) {
@@ -547,11 +549,11 @@ public class Main extends JavaPlugin implements Listener {
         }
 
         if (Cooldowns.activefortune.containsKey(player)) {
-            loadInv(player.getPlayer());
-            deleteInv(player.getPlayer());
+            loadInv(player);
+            deleteInv(player);
         }
 
-        Cooldowns.removeAll(player.getPlayer());
+        Cooldowns.removeAll(player);
     } // end of onPlayerGameLeave
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -640,7 +642,7 @@ public class Main extends JavaPlugin implements Listener {
                             return true;
                         }
 
-                        if (Cooldowns.filecooldown.containsKey(p.getPlayer())) {
+                        if (Cooldowns.filecooldown.containsKey(p)) {
                             Msgs.send(sender, getConfig().getString("messages.backup-must-wait").replace("%number%", Integer.toString(getConfig().getInt("features.clearing.inv-backup.backup-cooldown"))));
                             bass(p);
                             return true;
@@ -672,19 +674,19 @@ public class Main extends JavaPlugin implements Listener {
                         return true;
                     }
 
-                    if (Cooldowns.active.containsKey(p.getPlayer())) {
+                    if (Cooldowns.active.containsKey(p)) {
                         Msgs.send(sender, getConfig().getString("messages.backup-must-wait-clear"));
                         bass(p);
                         return true;
                     }
 
-                    if (Cooldowns.activefortune.containsKey(p.getPlayer())) {
+                    if (Cooldowns.activefortune.containsKey(p)) {
                         Msgs.send(sender, getConfig().getString("messages.backup-must-wait-fortune"));
                         bass(p);
                         return true;
                     }
 
-                    if (Cooldowns.filecooldown.containsKey(p.getPlayer())) {
+                    if (Cooldowns.filecooldown.containsKey(p)) {
                         Msgs.send(sender, getConfig().getString("messages.backup-must-wait").replace("%number%", Integer.toString(getConfig().getInt("features.clearing.inv-backup.backup-cooldown"))));
                         bass(p);
                         return true;
@@ -878,7 +880,7 @@ public class Main extends JavaPlugin implements Listener {
                         return true;
                     }
 
-                    if (!Cooldowns.notHurt(p.getPlayer())) {
+                    if (!Cooldowns.notHurt(p)) {
                         Msgs.sendBar(p, getConfig().getString("messages.fortune-while-hurt"));
                         bass(p);
                         return true;
@@ -1154,7 +1156,7 @@ public class Main extends JavaPlugin implements Listener {
 
             if (getConfig().getBoolean("features.fortunes.prevent-if-being-hurt")) {
                 Player player = (Player) e.getEntity();
-                Cooldowns.isBeinghurt.put(player.getPlayer(), System.currentTimeMillis());
+                Cooldowns.isBeinghurt.put(player, System.currentTimeMillis());
             }
         }
     }
@@ -1166,7 +1168,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        Player p = e.getPlayer();
+        final Player p = e.getPlayer();
 
         if (Cooldowns.active.containsKey(p) || Cooldowns.activefortune.containsKey(p)) {
             bass(p);
@@ -1182,7 +1184,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        Player p = e.getPlayer();
+        final Player p = e.getPlayer();
 
         Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
             public void run() {

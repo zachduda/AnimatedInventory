@@ -55,6 +55,10 @@ public class Updater {
                     	return;
                     }
                     
+                    if(spigotPluginVersion.equals("v7.5.4")) {
+                    	return;
+                    }
+                    
                     plugin.outdatedplugin = true;
                     plugin.outdatedpluginversion = spigotPluginVersion;
                     Bukkit.getServer().getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', "&r[AnimatedInventory] &e&lUpdate Available: &rYou're running &7v" + localPluginVersion + "&r, while the latest is &a" + spigotPluginVersion));

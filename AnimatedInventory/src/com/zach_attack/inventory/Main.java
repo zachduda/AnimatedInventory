@@ -492,7 +492,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
-        Player p = (Player) e;
+        Player p = (Player) e.getPlayer();
         if (getConfig().getBoolean("features.prevent-drop")) {
             if (Cooldowns.active.containsKey(p) || Cooldowns.activefortune.containsKey(p)) {
                 e.setCancelled(true);

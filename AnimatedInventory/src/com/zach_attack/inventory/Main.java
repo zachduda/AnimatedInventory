@@ -1,4 +1,4 @@
-package com.zach_attack.inventory;
+ package com.zach_attack.inventory;
 
 import java.io.File;
 import java.util.List;
@@ -35,6 +35,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.zach_attack.inventory.other.Updater;
+import com.zach_attack.inventory.GUI;
 import com.zach_attack.inventory.other.MetricsLite;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.api.AnimatedInventoryAPI;
@@ -140,6 +141,7 @@ public class Main extends JavaPlugin implements Listener {
         }
 
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(new GUI(), this);
         getLogger().info("Done! Ready to initialize awesome.");
     }
 
@@ -699,6 +701,21 @@ public class Main extends JavaPlugin implements Listener {
                                 }
                             }
                             FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
+                    		if(!f.exists()) {
+                    			getLogger().info("Request made for " + p.getName() + "'s inventory backup, but a file was not found.");
+                    			return true;
+                    		}
+                    		
+                    		final int uses = setcache.getInt("Uses", 0);
+                    		if(uses > 0 && getConfig().getBoolean("features.clearing.inv-backup.one-time-use")) {
+                    			Msgs.send(sender, getConfig().getString("messages.backup-already-used"));
+                    			bass(p);
+                    			return true;
+                    		}
+                    		
+                    		setcache.set("Uses", setcache.getInt("Uses", 0)+1);
+                    		setcache.save(f);
+                    		
                             long secondsAgo = Math.abs(((setcache.getLong("Last-Backup")) / 1000) - (System.currentTimeMillis() / 1000));
                             if (secondsAgo < 60) {
                                 Msgs.send(sender, getConfig().getString("messages.backup-restored").replace("%time%", Long.toString(secondsAgo) + "s"));
@@ -917,7 +934,11 @@ public class Main extends JavaPlugin implements Listener {
                     }
 
                     if (!Cooldowns.active.containsKey(p) && !Cooldowns.activefortune.containsKey(p)) {
-                        Clear.go(p);
+                    	if(getConfig().getBoolean("features.clearing.confirm-prompt")) {
+                    		GUI.confirmGUI(p);
+                    	} else {
+                    		Clear.go(p);
+                    	}
                     }
 
                 } else {

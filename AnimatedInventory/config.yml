@@ -27,6 +27,7 @@ messages:
   backup-no-file: '&c&lHm. &fWe don''t have a backup of your inventory.'
   backup-no-file-other: '&c&lHm. &fWe don''t have a backup of &7%player%''s &finventory.'
   backup-must-wait: '&c&lSlow Down! &fYou can only do that every &7%number%s'
+  backup-already-used: '&c&lOops! &fYou''ve already used this inventory backup.'
   undo-suggestion: '&7&oDid you possibly mean: &f/ai undoclear'
   tp-cancelled: '&c&lSorry. &fYou must wait until your clear/fortune is over to TP.'
 features:
@@ -41,6 +42,7 @@ features:
   
   clearing:
     enabled: true
+    confirm-prompt: true
     progress-msg: '&f&lClearing your inventory...'
     done-msg: '&a&lDone!'
     # For slot #'s see: https://gamepedia.cursecdn.com/minecraft_gamepedia/b/b2/Items_slot_number.png
@@ -52,6 +54,7 @@ features:
       enabled: false
       erase-after: 86400
       backup-cooldown: 5
+      one-time-use: true
     slot-switching: true
     # The token below is used to test if players are getting their inventory cleared
     # We sneak this item in the back just to test. Make sure it's unique and has some color codes.

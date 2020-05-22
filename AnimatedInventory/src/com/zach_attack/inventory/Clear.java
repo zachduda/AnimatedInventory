@@ -72,16 +72,17 @@ public class Clear {
 		
 		File cache = new File(plugin.getDataFolder(), File.separator + "Cache");
 		File f = new File(cache, File.separator + "" + p.getUniqueId().toString() + ".yml");
+		FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
 		
 		if(!f.exists()) {
 			plugin.getLogger().info("Request made for " + p.getName() + "'s inventory backup, but a file was not found.");
 			return;
 		}
-		
+		final int uses = setcache.getInt("Uses", 0);
+		if(uses > 0 && plugin.getConfig().getBoolean("features.clearing.inv-backup.one-time-use")) {
+			return;
+		}
 		Cooldowns.startFileCooldown(p);
-		
-		FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
-		
 		ItemStack[] backupinv = ((List<ItemStack>) setcache.get("Inventory")).toArray(new ItemStack[0]);
 		
 		p.getInventory().clear();

@@ -55,7 +55,7 @@ public class Updater {
                     	return;
                     }
                     
-                    if(spigotPluginVersion.equals("v7.5.4")) {
+                    if(spigotPluginVersion.equals("v7.6.1")) {
                     	return;
                     }
                     

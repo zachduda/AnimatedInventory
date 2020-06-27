@@ -13,10 +13,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 public class GUI implements Listener {
+	static String title = "§8Are you sure?";
     static Main plugin = Main.getPlugin(Main.class);
     
     static void confirmGUI(Player p) {
-            Inventory gui = Bukkit.getServer().createInventory(p, 27, "§8§lAre you sure?");
+            Inventory gui = Bukkit.getServer().createInventory(p, 27, title);
                 ItemStack mangos = new ItemStack(Material.LIME_CONCRETE);
                 ItemMeta mangosm = mangos.getItemMeta();
                 ArrayList < String > lore = new ArrayList < String > ();
@@ -62,7 +63,7 @@ public class GUI implements Listener {
 
         Player p = (Player) e.getWhoClicked();
 
-        if (e.getView().getTitle().equalsIgnoreCase("§8§lAre you sure?")) {
+        if (e.getView().getTitle().equalsIgnoreCase(title)) {
 
             e.setCancelled(true);
             if ((e.getCurrentItem() == null) || (e.getCurrentItem().getType().equals(Material.AIR))) {

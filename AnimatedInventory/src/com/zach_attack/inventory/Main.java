@@ -56,7 +56,7 @@ public class Main extends JavaPlugin implements Listener {
 
     private boolean debug = false;
 
-    private final String version = Bukkit.getVersion().toString().replace("-SNAPSHOT", "");
+    private final String version = Bukkit.getBukkitVersion().toString().replace("-SNAPSHOT", "");
     private final boolean supported = (version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16")) ?true :false;
     
 	public void onEnable() {
@@ -148,11 +148,6 @@ public class Main extends JavaPlugin implements Listener {
     public void onDisable() {
         disabledclearworld.clear();
         disabledfortuneworld.clear();
-
-        if (!version.contains("1.15") && !version.contains("1.14") && !version.contains("1.13")) {
-            getLogger().warning("Disabled because the server is not running 1.15.X, 1.14.X, or 1.13.2...");
-            return;
-        }
 
         try {
             MC1_15.emergencyRemove();

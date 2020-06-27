@@ -56,14 +56,14 @@ public class Main extends JavaPlugin implements Listener {
 
     private boolean debug = false;
 
-    private String version = Bukkit.getVersion().toString().replace("-SNAPSHOT", "");
-
+    private final String version = Bukkit.getVersion().toString().replace("-SNAPSHOT", "");
+    private final boolean supported = (version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16")) ?true :false;
+    
 	public void onEnable() {
-
-        if (!version.contains("1.15") && !version.contains("1.14") && !Bukkit.getVersion().contains("1.13")) {
-            getLogger().warning("ERROR: This version of AnimatedInventory ONLY supports 1.15.X, 1.14.X, or 1.13.2. Please use AnimatedInventory v6.4 or below!");
-            Bukkit.getPluginManager().disablePlugin(this);
-            return;
+		if (!supported) {
+        	Bukkit.getScheduler().runTask(this, () -> {
+        		getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.16 through 1.13)");
+            });
         }
 
         api = new AnimatedInventoryAPI();

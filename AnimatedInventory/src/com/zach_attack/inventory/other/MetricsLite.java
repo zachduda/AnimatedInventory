@@ -9,7 +9,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.ServicePriority;
-
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
@@ -17,18 +16,17 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.zip.GZIPOutputStream;
 
 /**
  * bStats collects some data for plugin authors.
- * Check out https://bStats.org/ to learn more about bStats!
  */
 public class MetricsLite {
-
     static {
         if (System.getProperty("bstats.relocatecheck") == null || !System.getProperty("bstats.relocatecheck").equals("false")) {
             final String defaultPackage = new String(
@@ -39,7 +37,7 @@ public class MetricsLite {
             }
         }
     }
-
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     public static final int B_STATS_VERSION = 1;
     private static final String URL = "https://bStats.org/submitData/bukkit";
     private boolean enabled;
@@ -49,18 +47,15 @@ public class MetricsLite {
     private static String serverUUID;
     private final Plugin plugin;
     private final int pluginId;
-
     public MetricsLite(Plugin plugin, int pluginId) {
         if (plugin == null) {
             throw new IllegalArgumentException("Plugin cannot be null!");
         }
         this.plugin = plugin;
         this.pluginId = pluginId;
-
         File bStatsFolder = new File(plugin.getDataFolder().getParentFile(), "bStats");
         File configFile = new File(bStatsFolder, "config.yml");
         YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
-
         if (!config.isSet("serverUuid")) {
             config.addDefault("enabled", true);
             config.addDefault("serverUuid", UUID.randomUUID().toString());
@@ -77,7 +72,6 @@ public class MetricsLite {
                 config.save(configFile);
             } catch (IOException ignored) { }
         }
-
         serverUUID = config.getString("serverUuid");
         logFailedRequests = config.getBoolean("logFailedRequests", false);
         enabled = config.getBoolean("enabled", true);
@@ -87,7 +81,7 @@ public class MetricsLite {
             boolean found = false;
             for (Class<?> service : Bukkit.getServicesManager().getKnownServices()) {
                 try {
-                    service.getField("B_STATS_VERSION"); // Our identifier :)
+                    service.getField("B_STATS_VERSION");
                     found = true;
                     break;
                 } catch (NoSuchFieldException ignored) { }
@@ -98,38 +92,32 @@ public class MetricsLite {
             }
         }
     }
-
     public boolean isEnabled() {
         return enabled;
     }
-
     private void startSubmitting() {
-        final Timer timer = new Timer(true);
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                if (!plugin.isEnabled()) {
-                    timer.cancel();
-                    return;
-                }
-                Bukkit.getScheduler().runTask(plugin, () -> submitData());
+        final Runnable submitTask = () -> {
+            if (!plugin.isEnabled()) {
+                scheduler.shutdown();
+                return;
             }
-        }, 1000 * 60 * 5, 1000 * 60 * 30);
+            Bukkit.getScheduler().runTask(plugin, this::submitData);
+        };
+        long initialDelay = (long) (1000 * 60 * (3 + Math.random() * 3));
+        long secondDelay = (long) (1000 * 60 * (Math.random() * 30));
+        scheduler.schedule(submitTask, initialDelay, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(submitTask, initialDelay + secondDelay, 1000 * 60 * 30, TimeUnit.MILLISECONDS);
     }
-
     public JsonObject getPluginData() {
         JsonObject data = new JsonObject();
         String pluginName = plugin.getDescription().getName();
         String pluginVersion = plugin.getDescription().getVersion();
-
-        data.addProperty("pluginName", pluginName);
-        data.addProperty("id", pluginId);
-        data.addProperty("pluginVersion", pluginVersion);
+        data.addProperty("pluginName", pluginName); // Append the name of the plugin
+        data.addProperty("id", pluginId); // Append the id of the plugin
+        data.addProperty("pluginVersion", pluginVersion); // Append the version of the plugin
         data.add("customCharts", new JsonArray());
-
         return data;
     }
-
     private JsonObject getServerData() {
         int playerAmount;
         try {
@@ -143,47 +131,36 @@ public class MetricsLite {
         int onlineMode = Bukkit.getOnlineMode() ? 1 : 0;
         String bukkitVersion = Bukkit.getVersion();
         String bukkitName = Bukkit.getName();
-
-        // OS/Java specific data
         String javaVersion = System.getProperty("java.version");
         String osName = System.getProperty("os.name");
         String osArch = System.getProperty("os.arch");
         String osVersion = System.getProperty("os.version");
         int coreCount = Runtime.getRuntime().availableProcessors();
-
         JsonObject data = new JsonObject();
-
         data.addProperty("serverUUID", serverUUID);
-
         data.addProperty("playerAmount", playerAmount);
         data.addProperty("onlineMode", onlineMode);
         data.addProperty("bukkitVersion", bukkitVersion);
         data.addProperty("bukkitName", bukkitName);
-
         data.addProperty("javaVersion", javaVersion);
         data.addProperty("osName", osName);
         data.addProperty("osArch", osArch);
         data.addProperty("osVersion", osVersion);
         data.addProperty("coreCount", coreCount);
-
         return data;
     }
-
     private void submitData() {
         final JsonObject data = getServerData();
-
         JsonArray pluginData = new JsonArray();
-        // Search for all other bStats Metrics classes to get their plugin data
         for (Class<?> service : Bukkit.getServicesManager().getKnownServices()) {
             try {
-                service.getField("B_STATS_VERSION"); // Our identifier :)
-
+                service.getField("B_STATS_VERSION");
                 for (RegisteredServiceProvider<?> provider : Bukkit.getServicesManager().getRegistrations(service)) {
                     try {
                         Object plugin = provider.getService().getMethod("getPluginData").invoke(provider.getProvider());
                         if (plugin instanceof JsonObject) {
                             pluginData.add((JsonObject) plugin);
-                        } else { // old bstats version compatibility
+                        } else {
                             try {
                                 Class<?> jsonObjectJsonSimple = Class.forName("org.json.simple.JSONObject");
                                 if (plugin.getClass().isAssignableFrom(jsonObjectJsonSimple)) {
@@ -204,7 +181,6 @@ public class MetricsLite {
                 }
             } catch (NoSuchFieldException ignored) { }
         }
-
         data.add("plugins", pluginData);
         new Thread(() -> {
             try {
@@ -216,7 +192,6 @@ public class MetricsLite {
             }
         }).start();
     }
-
     private static void sendData(Plugin plugin, JsonObject data) throws Exception {
         if (data == null) {
             throw new IllegalArgumentException("Data cannot be null!");
@@ -240,7 +215,6 @@ public class MetricsLite {
         try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
             outputStream.write(compressedData);
         }
-
         StringBuilder builder = new StringBuilder();
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
             String line;
@@ -248,12 +222,10 @@ public class MetricsLite {
                 builder.append(line);
             }
         }
-
         if (logResponseStatusText) {
             plugin.getLogger().info("Sent data to bStats and received response: " + builder);
         }
     }
-
     private static byte[] compress(final String str) throws IOException {
         if (str == null) {
             return null;
@@ -264,5 +236,4 @@ public class MetricsLite {
         }
         return outputStream.toByteArray();
     }
-
 }

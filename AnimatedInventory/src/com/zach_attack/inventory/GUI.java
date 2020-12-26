@@ -12,8 +12,10 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import net.md_5.bungee.api.ChatColor;
+
 public class GUI implements Listener {
-	static String title = "§8Are you sure?";
+	static String title = "§8Are you §lsure§r§8?";
     static Main plugin = Main.getPlugin(Main.class);
     
     static void confirmGUI(Player p) {
@@ -24,7 +26,7 @@ public class GUI implements Listener {
 
                 lore.add("§fClear my inventory.");
                 mangosm.setLore(lore);
-                mangosm.setDisplayName("§r§a§lYES");
+                mangosm.setDisplayName(ChatColor.GREEN + "§lYES");
                 mangos.setItemMeta(mangosm);
 
                 gui.setItem(12, mangos);
@@ -38,7 +40,7 @@ public class GUI implements Listener {
                 slore.add("§fKeep my inventory.");
 
                 streakm.setLore(slore);
-                streakm.setDisplayName("§r§c§lNO");
+                streakm.setDisplayName(ChatColor.RED + "§lNO");
 
                 streakitem.setItemMeta(streakm);
             gui.setItem(14, streakitem);
@@ -70,9 +72,8 @@ public class GUI implements Listener {
                 return;
             }
             String item = e.getCurrentItem().getItemMeta().getDisplayName();
-
             if (e.getSlot() == 12) {
-                if (item.equalsIgnoreCase("§r§a§lYES")) {
+                if (item.contains("YES")) {
                        p.closeInventory();
                        Clear.go(p);
                     return;
@@ -80,7 +81,7 @@ public class GUI implements Listener {
             }
 
             if (e.getSlot() == 14) {
-                if (item.equalsIgnoreCase("§r§c§lNO")) {
+                if (item.contains("NO")) {
                     p.closeInventory();
                     plugin.pop(p);
                     Msgs.sendBar(p, "&c&lClear Canceled. &fYour inventory won't be cleared.");

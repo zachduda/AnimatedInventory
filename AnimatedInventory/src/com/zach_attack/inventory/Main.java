@@ -1,4 +1,4 @@
- package com.zach_attack.inventory;
+package com.zach_attack.inventory;
 
 import java.io.File;
 import java.util.List;
@@ -40,7 +40,6 @@ import com.zach_attack.inventory.other.MetricsLite;
 import com.zach_attack.inventory.Cooldowns;
 import com.zach_attack.inventory.api.AnimatedInventoryAPI;
 
-
 public class Main extends JavaPlugin implements Listener {
 
     public String outdatedpluginversion;
@@ -57,12 +56,12 @@ public class Main extends JavaPlugin implements Listener {
     private boolean debug = false;
 
     private final String version = Bukkit.getBukkitVersion().toString().replace("-SNAPSHOT", "");
-    private final boolean supported = (version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16")) ?true :false;
+    private final boolean supported = (version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16") || version.contains("1.17")) ?true :false;
     
 	public void onEnable() {
 		if (!supported) {
         	Bukkit.getScheduler().runTask(this, () -> {
-        		getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.16 through 1.13)");
+        		getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.17 through 1.13)");
             });
         }
 

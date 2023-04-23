@@ -1,0 +1,108 @@
+messages:
+  prefix: '&8[&b&lA&r&bnimated&f&lI&r&fnv&8]'
+  no-permission: '&cYou don''t have permission for that.'
+  reload: '&a&l✓ &fConfiguration Reloaded.'
+  not-a-command: '&cCouldn''t find the command: &f%cmd%'
+  not-online: '&c&lOops! &f%player% is not online to do that.'
+  no-player: '&c&lOops! &fYou must specify a player to do that to.'
+  already-clearing: '&c&lOops! &fYou must wait until %player%''s inventory finishes clearing.'
+  already-getting-fortune: '&c&lOops! &fYou must wait until %player%''s fortune finishes.'
+  clear-other-success: '&a&lDone! &fNow clearing the inventory of &7%player%'
+  fortune-other-success: '&a&lDone! &fNow simulating a fortune for &7%player%'
+  fortune-while-hurt: '&c&lSorry! &fYou can''t get a fortune while under attack.'
+  fortune-need-more-health: '&c&lSorry! &fYou must have at least %num% &fhearts to do that.'
+  clear-disabled: '&c&lSorry! &fInventory clear has been disabled in the config.yml'
+  fortune-disabled: '&c&lSorry! &fFortunes have been disabled in the config.yml'
+  clear-world-disabled: '&c&lSorry! &fInventory clear isn''t allowed here.'
+  fortune-world-disabled: '&c&lSorry! &fFortunes aren''t allowed here.'
+  death: '&c&lDrops Canceled. &fYou died while having your inventory controlled.'
+  backups-disabled: '&c&lOops! &fInventory backups are disabled in the config.'
+  backup-restored: '&6&lRestored. &fInventory from &7%time% &fago was restored.'
+  backup-restored-other: '&6&lRestored. &7%player%''s &finventory from &7%time% &fago was restored.'
+  backup-restored-target: '&6&lRestored. &fYour inventory from &7%time% &fago has been restored.'
+  backup-must-wait: '&c&lSlow Down. &fYou can''t do this while clearing.'
+  backup-must-wait-clear: '&c&lWait. &fYou can''t do this while clearing.'
+  backup-must-wait-fortune: '&c&lWait. &fYou can''t do this during a fortune.'
+  backup-error: '&4&lError. &fWe were not able to that at this time, sorry!'
+  backup-no-file: '&c&lHm. &fWe don''t have a backup of your inventory.'
+  backup-no-file-other: '&c&lHm. &fWe don''t have a backup of &7%player%''s &finventory.'
+  backup-must-wait: '&c&lSlow Down! &fYou can only do that every &7%number%s'
+  backup-already-used: '&c&lOops! &fYou''ve already used this inventory backup.'
+  undo-suggestion: '&7&oDid you possibly mean: &f/ai undoclear'
+  tp-cancelled: '&c&lSorry. &fYou must wait until your clear/fortune is over to TP.'
+features:
+  # The prevention settings apply to both fortunes & clearing.
+  prevent-drop: true
+  prevent-move: true
+  prevent-place: true
+  prevent-pickup: true
+  prevent-player-slot-changes: true
+  
+  use-particles: true
+  
+  clearing:
+    enabled: true
+    confirm-prompt: true
+    progress-msg: '&f&lClearing your inventory...'
+    done-msg: '&a&lDone!'
+    # For slot #'s see: https://gamepedia.cursecdn.com/minecraft_gamepedia/b/b2/Items_slot_number.png
+    enable-slot-skipping: false
+    skip-slots:
+    - 35
+    clear-armor: true
+    inv-backup:
+      enabled: false
+      erase-after: 86400
+      backup-cooldown: 5
+      one-time-use: true
+    slot-switching: true
+    # The token below is used to test if players are getting their inventory cleared
+    # We sneak this item in the back just to test. Make sure it's unique and has some color codes.
+    token: '&eInventory is being cleared.'
+    token-item: 'MINECART'
+    
+    animations:
+      Pane_Animation:
+        enabled: true
+      Rainbow_Animation:
+        enabled: true
+      Water_Animation:
+        enabled: true  
+      Explode_Animation:
+        enabled: true
+      Fireball_Animation:
+        enabled: true
+    disabled-worlds:
+    - none
+  fortunes:
+    enabled: true
+    done-msg: '&a&lDone!'
+    prevent-if-being-hurt: true
+    health-restriction:
+      enabled: true
+      min: 10.0
+    result:
+      good-luck: 50
+      -yes: '&f&lYour Fortune: &a&lYes'
+      -no: '&f&lYour Fortune: &c&lNo'
+      notify-console: false
+    yes-block:
+      name: '&a&lYes'
+    no-block:
+      name: '&c&lNo'
+    spin-message: 'Spinning...'
+    disabled-worlds:
+    - none
+    
+options:
+  cooldowns:
+    enabled: true    # True = Using Cooldowns / False = No Cooldown usage
+    time: 5    # This number is in seconds.
+    msg: '&c&lSlow Down! &fYou can only do that every &7%number% &fseconds'
+  commands:
+    clear-override: true
+  updates:
+    notify: true
+  metrics: true
+  debug: false
+config-version: 17

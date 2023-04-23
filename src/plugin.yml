@@ -1,0 +1,61 @@
+name: AnimatedInventory
+version: 7.7
+author: zach_attack
+website: https://www.spigotmc.org/resources/animatedinventory.59785/
+main: com.zachduda.animatedinventory.Main
+description: Animates players inventories.
+api-version: 1.13
+commands:
+  ai:
+    description: Main command for AnimatedInventory.
+    aliases: animatedinventory
+permissions:
+   animatedinv.*:
+     description: Allows all AnimatedInv commands & admin commands.
+     children:
+       animatedinv.help: true
+       animatedinv.clear.others: true
+       animatedinv.clear: true
+       animatedinv.clear.undo: true
+       animatedinv.clear.undo.others: true
+       animatedinv.fortune: true
+       animatedinv.fortune.others: true
+       animatedinv.admin: true
+   animatedinventory.*:
+     description: Allows all AnimatedInv commands & admin commands.
+     children:
+       animatedinv.help: true
+       animatedinv.clear.others: true
+       animatedinv.clear: true
+       animatedinv.clear.undo: true
+       animatedinv.clear.undo.others: true
+       animatedinv.fortune: true
+       animatedinv.fortune.others: true
+       animatedinv.admin: true
+   animatedinv.help:
+     description: Shows the AnimatedInv help page.
+     default: true
+   animatedinv.admin:
+     description: Allows players to reload the plugin etc.
+     default: op
+   animatedinv.clear:
+     description: Allows players to clear their inventory.
+     default: true
+   animatedinv.fortune:
+     description: Allows players to view their fortune.
+     default: true
+   animatedinv.fortune.others:
+     description: Allows players to summon another player's fortune.
+     default: op
+   animatedinv.clear.others:
+     description: Allows players to clear others inventory.
+     default: op
+   animatedinv.clear.undo:
+     description: Allows players to restore their inventory.
+     default: op
+   animatedinv.clear.undo.others:
+     description: Allows players to restore their inventory.
+     default: op
+   animatedinv.purge:
+     description: Allows the deletion of old cache.
+     default: op

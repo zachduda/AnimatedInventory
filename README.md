@@ -5,6 +5,23 @@ AnimatedInventory helps to spice up your server with several animations to clear
 You can find AnimatedInventory on our spigot page @: https://www.spigotmc.org/resources/animatedinventory.59785/
 
 # Getting Started with the API
+
+## Maven
+AnimatedInventory supports maven through Jitpack:
+```xml
+<repository>
+    <id>jitpack.io</id>
+    <url>https://jitpack.io</url>
+</repository>
+```
+```xml
+<dependency>
+  <groupId>com.github.zachduda</groupId>
+  <artifactId>AnimatedInventory</artifactId>
+  <version>7.7.0</version>
+</dependency>
+```
+
 AnimatedInventory is equipped with an API for developers to use. See our Spigot Wiki page below for help on how to use it!
 https://www.spigotmc.org/wiki/animatedinventoryapi/
 

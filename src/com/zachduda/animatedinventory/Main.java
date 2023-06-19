@@ -43,8 +43,8 @@ public class Main extends JavaPlugin implements Listener {
 
     public AnimatedInventoryAPI api;
 
-    public List <String> disabledclearworld = getConfig().getStringList("features.clearing.disabled-worlds");
-    public List <String> disabledfortuneworld = getConfig().getStringList("features.fortunes.disabled-worlds");
+    public List < String > disabledclearworld = getConfig().getStringList("features.clearing.disabled-worlds");
+    public List < String > disabledfortuneworld = getConfig().getStringList("features.fortunes.disabled-worlds");
 
     private boolean preventglitch = true;
     private String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
@@ -56,11 +56,11 @@ public class Main extends JavaPlugin implements Listener {
 
     static final String version = Bukkit.getBukkitVersion().replace("-SNAPSHOT", "");
     private final boolean supported = version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16") || version.contains("1.17") || version.contains("1.18") || version.contains("1.19") || version.contains("1.20");
-    
-	@SuppressWarnings("deprecation")
+
+    @SuppressWarnings("deprecation")
     public void onEnable() {
-		if (!supported) {
-        	Bukkit.getScheduler().runTask(this, () -> getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.20 through 1.13)"));
+        if (!supported) {
+            Bukkit.getScheduler().runTask(this, () -> getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.20 through 1.13)"));
         }
 
         api = new AnimatedInventoryAPI();
@@ -98,8 +98,8 @@ public class Main extends JavaPlugin implements Listener {
         Clear.purgeCache();
 
         if (getConfig().getBoolean("options.metrics")) {
-        	try {
-        		metrics = new Metrics(this, 3079);
+            try {
+                metrics = new Metrics(this, 3079);
             } catch (Exception e) {
                 getLogger().info("Error when setting Metrics, setting to false.");
                 getConfig().set("options.metrics", false);
@@ -107,7 +107,7 @@ public class Main extends JavaPlugin implements Listener {
                 reloadConfig();
             }
         }
-	
+
         if (updatecheck) {
             try {
                 new Updater(this).checkForUpdate();
@@ -128,7 +128,7 @@ public class Main extends JavaPlugin implements Listener {
         try {
             MC1_20.emergencyRemove();
         } catch (Exception e) {
-            getLogger().info("Error when trying to check players inventorys on disable event.");
+            getLogger().info("Error when trying to check players inventory's on disable event.");
             if (debug) {
                 e.printStackTrace();
             }
@@ -146,13 +146,13 @@ public class Main extends JavaPlugin implements Listener {
         try {
             MC1_20.emergencyRemove();
         } catch (Exception e) {
-            getLogger().info("Error when trying to check players inventorys on disable event.");
+            getLogger().info("Error when trying to check players inventory's on disable event.");
             if (debug) {
                 e.printStackTrace();
             }
         }
 
-        if(metrics != null) {
+        if (metrics != null) {
             metrics.shutdown();
         }
 
@@ -188,11 +188,11 @@ public class Main extends JavaPlugin implements Listener {
         }
 
         if (!getConfig().getBoolean("features.clearing.animations.Pane_Animation.enabled") &&
-            !getConfig().getBoolean("features.clearing.animations.Rainbow_Animation.enabled") &&
-            !getConfig().getBoolean("features.clearing.animations.Water_Animation.enabled") &&
-            !getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled") &&
-            !getConfig().getBoolean("features.clearing.animations.Fireball_Animation.enabled") &&
-            getConfig().getBoolean("features.clearing.enabled")) {
+                !getConfig().getBoolean("features.clearing.animations.Rainbow_Animation.enabled") &&
+                !getConfig().getBoolean("features.clearing.animations.Water_Animation.enabled") &&
+                !getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled") &&
+                !getConfig().getBoolean("features.clearing.animations.Fireball_Animation.enabled") &&
+                getConfig().getBoolean("features.clearing.enabled")) {
 
             getConfig().set("features.clearing.enabled", false);
             saveConfig();
@@ -201,11 +201,11 @@ public class Main extends JavaPlugin implements Listener {
         }
 
         if (getConfig().getBoolean("options.cooldowns.enabled") &&
-            (getConfig().getInt("options.cooldowns.time") == 0 ||
-                Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") ||
-                Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("disabled") ||
-                Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("off") ||
-                getConfig().getString("options.cooldowns.time") == null)) {
+                (getConfig().getInt("options.cooldowns.time") == 0 ||
+                        Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") ||
+                        Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("disabled") ||
+                        Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("off") ||
+                        getConfig().getString("options.cooldowns.time") == null)) {
             getConfig().set("options.cooldowns.enabled", false);
             getConfig().set("options.cooldowns.time", 0);
             saveConfig();
@@ -242,7 +242,7 @@ public class Main extends JavaPlugin implements Listener {
         if (getConfig().getBoolean("features.clearing.enable-slot-skipping")) {
             List < Integer > skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
             if (skipslot.contains(0) || skipslot.contains(1) || skipslot.contains(2) || skipslot.contains(3) || skipslot.contains(4) || skipslot.contains(5) || skipslot.contains(6) || skipslot.contains(7) || skipslot.contains(8)) {
-                getLogger().warning("WARNING: You're choosing to skip a slot between 1-8 (Hotbar). These WONT be skipped because they are part of the animaions.");
+                getLogger().warning("WARNING: You're choosing to skip a slot between 1-8 (Hotbar). These WONT be skipped because they are part of the animations.");
             }
 
             if (skipslot.contains(22)) {
@@ -266,19 +266,21 @@ public class Main extends JavaPlugin implements Listener {
         Msgs.sendBar(p, getConfig().getString("features.clearing.progress-msg"));
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     void saveInv(Player p) {
         ItemStack[] inv = p.getInventory().getContents();
         Cooldowns.inventories.put(p, inv);
-        p.updateInventory();
+        p.updateInventory(); // Spigot deprecated. Not always needed, but is a good failsafe.
         if (debug) {
             getLogger().info("[Debug] Saving " + p.getName() + "'s inventory in system.");
         }
     }
 
+    @SuppressWarnings("UnstableApiUsage")
     void loadInv(Player p) {
         p.getInventory().clear();
         p.getInventory().setContents(Cooldowns.inventories.get(p));
-        p.updateInventory();
+        p.updateInventory(); // Spigot deprecated. Not always needed, but is a good failsafe.
         if (debug) {
             getLogger().info("[Debug] Loading back " + p.getName() + "'s inventory from system.");
         }
@@ -304,7 +306,6 @@ public class Main extends JavaPlugin implements Listener {
         bass(p);
     }
 
-
     void cleardone(CommandSender sender) {
         Player p = (Player) sender;
         Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(this, () -> {
@@ -314,7 +315,7 @@ public class Main extends JavaPlugin implements Listener {
             // Erasing of Inv
             if (getConfig().getBoolean("features.clearing.enable-slot-skipping")) {
 
-                List <Integer> skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
+                List < Integer > skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
                 for (int i = 0; i < 36; i++) {
                     if (!skipslot.contains(i)) {
                         p.getInventory().setItem(i, new ItemStack(Material.AIR));
@@ -342,7 +343,6 @@ public class Main extends JavaPlugin implements Listener {
                     p.getInventory().clear();
                 }
             }
-
 
             Cooldowns.removeActive(p);
             Msgs.sendBar(p, getConfig().getString("features.clearing.done-msg"));
@@ -407,7 +407,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
     public void onCommandPreProcess(PlayerCommandPreprocessEvent e) {
-    	final Player p = e.getPlayer();
+        final Player p = e.getPlayer();
         if (getConfig().getBoolean("options.commands.clear-override")) {
             if (e.getMessage().equalsIgnoreCase("/clear")) {
                 e.setCancelled(true);
@@ -670,7 +670,7 @@ public class Main extends JavaPlugin implements Listener {
 
                     try {
                         File cache = new File(this.getDataFolder(), File.separator + "Cache");
-                        File f = new File(cache, File.separator + "" + p.getUniqueId() + ".yml");
+                        File f = new File(cache, File.separator + p.getUniqueId() + ".yml");
                         if (f.exists()) {
                             try {
                                 Clear.undoClear(p);
@@ -685,21 +685,21 @@ public class Main extends JavaPlugin implements Listener {
                                 }
                             }
                             FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
-                    		if(!f.exists()) {
-                    			getLogger().info("Request made for " + p.getName() + "'s inventory backup, but a file was not found.");
-                    			return true;
-                    		}
-                    		
-                    		final int uses = setcache.getInt("Uses", 0);
-                    		if(uses > 0 && getConfig().getBoolean("features.clearing.inv-backup.one-time-use")) {
-                    			Msgs.send(sender, getConfig().getString("messages.backup-already-used"));
-                    			bass(p);
-                    			return true;
-                    		}
-                    		
-                    		setcache.set("Uses", setcache.getInt("Uses", 0)+1);
-                    		setcache.save(f);
-                    		
+                            if (!f.exists()) {
+                                getLogger().info("Request made for " + p.getName() + "'s inventory backup, but a file was not found.");
+                                return true;
+                            }
+
+                            final int uses = setcache.getInt("Uses", 0);
+                            if (uses > 0 && getConfig().getBoolean("features.clearing.inv-backup.one-time-use")) {
+                                Msgs.send(sender, getConfig().getString("messages.backup-already-used"));
+                                bass(p);
+                                return true;
+                            }
+
+                            setcache.set("Uses", setcache.getInt("Uses", 0) + 1);
+                            setcache.save(f);
+
                             long secondsAgo = Math.abs(((setcache.getLong("Last-Backup")) / 1000) - (System.currentTimeMillis() / 1000));
                             if (secondsAgo < 60) {
                                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.backup-restored")).replace("%time%", secondsAgo + "s"));
@@ -918,11 +918,11 @@ public class Main extends JavaPlugin implements Listener {
                     }
 
                     if (!Cooldowns.active.containsKey(p) && !Cooldowns.activefortune.containsKey(p)) {
-                    	if(getConfig().getBoolean("features.clearing.confirm-prompt")) {
-                    		GUI.confirmGUI(p);
-                    	} else {
-                    		Clear.go(p);
-                    	}
+                        if (getConfig().getBoolean("features.clearing.confirm-prompt")) {
+                            GUI.confirmGUI(p);
+                        } else {
+                            Clear.go(p);
+                        }
                     }
 
                 } else {
@@ -985,7 +985,7 @@ public class Main extends JavaPlugin implements Listener {
 
             try {
                 File cache = new File(this.getDataFolder(), File.separator + "Cache");
-                File f = new File(cache, File.separator + "" + target.getUniqueId() + ".yml");
+                File f = new File(cache, File.separator + target.getUniqueId() + ".yml");
 
                 if (!f.exists()) {
                     Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.backup-no-file-other")).replace("%player%", target.getName()));
@@ -1156,7 +1156,6 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onTP(PlayerTeleportEvent e) {
         if (!preventglitch) {
@@ -1193,7 +1192,6 @@ public class Main extends JavaPlugin implements Listener {
                     p.getInventory().clear();
                 }
 
-
                 final ItemStack one = new ItemStack(Material.LIME_CONCRETE);
                 ItemMeta onem = one.getItemMeta();
                 assert onem != null;
@@ -1226,11 +1224,11 @@ public class Main extends JavaPlugin implements Listener {
             // I kindly ask you leave the above portion in ANY modification of this plugin. Thank You!
 
             if (updatecheck) {
-                if (p.hasPermission("puuids.admin") || p.isOp()) {
+                if (p.hasPermission("animatedinventory.admin") || p.isOp()) {
                     if (Updater.isOutdated()) {
-                            Msgs.sendPrefix(p, "&c&lOutdated Plugin! &7Running v" + getDescription().getVersion() +
-                                    " while the latest is &f&l" + Updater.getPostedVersion());
-                            pop(p);
+                        Msgs.sendPrefix(p, "&c&lOutdated Plugin! &7Running v" + getDescription().getVersion() +
+                                " while the latest is &f&l" + Updater.getPostedVersion());
+                        pop(p);
                     }
                 }
             }

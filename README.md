@@ -18,7 +18,7 @@ AnimatedInventory supports maven through Jitpack:
 <dependency>
   <groupId>com.github.zachduda</groupId>
   <artifactId>animatedinventory</artifactId>
-  <version>7.7</version>
+  <version>7.8</version>
 </dependency>
 ```
 

@@ -3,7 +3,7 @@ package com.zachduda.animatedinventory.api;
 import org.bukkit.entity.Player;
 import com.zachduda.animatedinventory.Clear;
 import com.zachduda.animatedinventory.Cooldowns;
-import com.zachduda.animatedinventory.MC1_19;
+import com.zachduda.animatedinventory.MC1_20;
 import com.zachduda.animatedinventory.Main;
 
 public final class AnimatedInventoryAPI {
@@ -83,11 +83,11 @@ public final class AnimatedInventoryAPI {
 		if(dochecks) {
 		if(!Cooldowns.cooldown.containsKey(p) && !Cooldowns.active.containsKey(p) && Cooldowns.notHurt(p) && !Cooldowns.activefortune.containsKey(p)
 			    && !plugin.disabledfortuneworld.contains(p.getWorld().getName())) {
-   		    	MC1_19.fortune(p);
+   		    	MC1_20.fortune(p);
 				Cooldowns.activefortune.put(p, p.getName()); 
 		}
 	} else {
-	    MC1_19.fortune(p);
+	    MC1_20.fortune(p);
 		Cooldowns.activefortune.put(p, p.getName()); 
 	}}
 	

@@ -222,19 +222,19 @@ public class Clear {
 		
   	 try {
   		if(randomInt == 1) {
-  		  		MC1_19.animation1(p);
+  		  		MC1_20.animation1(p);
   		} else
   	  		if(randomInt == 2) {
-  	  		  		MC1_19.animation2(p);
+  	  		  		MC1_20.animation2(p);
   	  		} else
   	    		if(randomInt == 3) {
-  	    		  		MC1_19.animation3(p);
+  	    		  		MC1_20.animation3(p);
   	    		} else
   	    	  		if(randomInt == 4) {
-  	    	  		  		MC1_19.animation4(p);
+  	    	  		  		MC1_20.animation4(p);
   	    	  		} else 
   	    	  			if(randomInt == 5) {
-	    	  		  			MC1_19.animation5(p);
+	    	  		  			MC1_20.animation5(p);
   	    	  			}
   		animations.clear();
   	 }catch(Exception e) { 

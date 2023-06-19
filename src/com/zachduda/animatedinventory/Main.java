@@ -55,12 +55,12 @@ public class Main extends JavaPlugin implements Listener {
     private Metrics metrics;
 
     static final String version = Bukkit.getBukkitVersion().replace("-SNAPSHOT", "");
-    private final boolean supported = version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16") || version.contains("1.17") || version.contains("1.18") || version.contains("1.19");
+    private final boolean supported = version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16") || version.contains("1.17") || version.contains("1.18") || version.contains("1.19") || version.contains("1.20");
     
 	@SuppressWarnings("deprecation")
     public void onEnable() {
 		if (!supported) {
-        	Bukkit.getScheduler().runTask(this, () -> getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.17 through 1.13)"));
+        	Bukkit.getScheduler().runTask(this, () -> getLogger().warning("> This plugin may not work for this version of Minecraft. (Supports 1.20 through 1.13)"));
         }
 
         api = new AnimatedInventoryAPI();
@@ -126,7 +126,7 @@ public class Main extends JavaPlugin implements Listener {
         disabledfortuneworld.addAll(getConfig().getStringList("features.fortunes.disabled-worlds"));
 
         try {
-            MC1_19.emergencyRemove();
+            MC1_20.emergencyRemove();
         } catch (Exception e) {
             getLogger().info("Error when trying to check players inventorys on disable event.");
             if (debug) {
@@ -144,7 +144,7 @@ public class Main extends JavaPlugin implements Listener {
         disabledfortuneworld.clear();
 
         try {
-            MC1_19.emergencyRemove();
+            MC1_20.emergencyRemove();
         } catch (Exception e) {
             getLogger().info("Error when trying to check players inventorys on disable event.");
             if (debug) {
@@ -165,7 +165,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private void updateConfig() {
-        MC1_19.moveslots = getConfig().getBoolean("features.clearing.slot-switching");
+        MC1_20.moveslots = getConfig().getBoolean("features.clearing.slot-switching");
 
         int worlds = Bukkit.getWorlds().size();
         if (worlds > 1) {
@@ -882,7 +882,7 @@ public class Main extends JavaPlugin implements Listener {
                         getLogger().info("[Debug] Self induced fortune: " + p.getName());
                     }
                     try {
-                        MC1_19.fortune(p);
+                        MC1_20.fortune(p);
                     } catch (Exception e) {
                         errorMsg(p, 10, e);
                     }
@@ -1125,7 +1125,7 @@ public class Main extends JavaPlugin implements Listener {
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.fortune-other-success")).replace("%player%", args[1]));
                 try {
-                    MC1_19.fortune(target);
+                    MC1_20.fortune(target);
                     Cooldowns.activefortune.put(target, target.getName());
                 } catch (Exception e) {
                     errorMsg(target, 10, e);

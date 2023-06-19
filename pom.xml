@@ -7,13 +7,13 @@
     <artifactId>animatedinventory</artifactId>
     <url>https://github.com/zachduda/AnimatedInventory</url>
     <packaging>jar</packaging>
-    <version>7.7.0</version>
+    <version>7.8.0</version>
     <description>Animates players inventories.</description>
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spigot.version>1.19.4-R0.1-SNAPSHOT</spigot.version>
+        <spigot.version>1.20.1-R0.1-SNAPSHOT</spigot.version>
     </properties>
     <distributionManagement>
         <repository>
@@ -106,7 +106,7 @@
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
-            <version>1.19.4-R0.1-SNAPSHOT</version>
+            <version>1.20-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -124,7 +124,7 @@
         <dependency>
             <groupId>net.md-5</groupId>
             <artifactId>bungeecord-api</artifactId>
-            <version>1.19-R0.1-SNAPSHOT</version>
+            <version>1.20-R0.1-SNAPSHOT</version>
             <type>jar</type>
             <scope>provided</scope>
         </dependency>

@@ -1,3 +1,6 @@
+[![Build Status](https://ci.zachduda.com/job/ChatFeelings/badge/icon)](https://ci.zachduda.com/job/AnimatedInventory/)
+
+
 # AnimatedInventory
 AnimatedInventory helps to spice up your server with several animations to clear you inventory with. Not to mention it's unique hotbar fortunes and one-of-a-kind /ai undoclear which allows users to actually reverse time and restore accidental inventory clears!
 

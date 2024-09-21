@@ -19,7 +19,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
-                world.spawnParticle(Particle.EXPLOSION_LARGE, p.getLocation().add(0, 1, 0), 3, 0.4D, 0.2D, 0.4D);
+                world.spawnParticle(Particle.EXPLOSION, p.getLocation().add(0, 1, 0), 3, 0.4D, 0.2D, 0.4D);
             } catch (Exception e) {
                 pErr("EXPLOSION_LARGE");
             }
@@ -30,7 +30,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
-                world.spawnParticle(Particle.SPELL_MOB, p.getLocation().add(0, 1, 0), 50, 0.2D, 0.2D, 0.2D);
+                world.spawnParticle(Particle.WITCH, p.getLocation().add(0, 1, 0), 50, 0.2D, 0.2D, 0.2D);
             } catch (Exception e) {
             	pErr("SPELL_MOB");
             }
@@ -52,7 +52,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
-                world.spawnParticle(Particle.SPELL, p.getLocation().add(0, 1, 0), 50, 0.2D, 0.2D, 0.2D);
+                world.spawnParticle(Particle.WITCH, p.getLocation().add(0, 1, 0), 50, 0.2D, 0.2D, 0.2D);
             } catch (Exception e) {
             	pErr("SPELL");
             }
@@ -63,7 +63,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
-                world.spawnParticle(Particle.DRIP_WATER, p.getLocation().add(0, 1, 0), 20, 0.2D, 0.2D, 0.2D);
+                world.spawnParticle(Particle.DRIPPING_WATER, p.getLocation().add(0, 1, 0), 20, 0.2D, 0.2D, 0.2D);
             } catch (Exception e) {
             	pErr("DRIP_WATER");
             }
@@ -73,7 +73,7 @@ public class Particlez implements Listener {
     static void yesParticle(Player p) {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
-                p.spawnParticle(Particle.VILLAGER_HAPPY, p.getLocation().add(0, 1, 0), 50, 0.5D, 0.3D, 0.5D);
+                p.spawnParticle(Particle.HAPPY_VILLAGER, p.getLocation().add(0, 1, 0), 50, 0.5D, 0.3D, 0.5D);
             } catch (Exception e) {
             	pErr("VILLAGER_HAPPY");
             }

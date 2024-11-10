@@ -64,7 +64,7 @@
                     <relocations>
                         <relocation>
                             <pattern>org.bstats</pattern>
-                            <shadedPattern>com.zachduda.puuids.metrics</shadedPattern>
+                            <shadedPattern>com.zachduda.animatedinventory.other.metrics</shadedPattern>
                         </relocation>
                     </relocations>
                     <minimizeJar>true</minimizeJar>

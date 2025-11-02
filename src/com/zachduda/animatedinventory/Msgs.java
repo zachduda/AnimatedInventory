@@ -4,11 +4,13 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.Objects;
+
 public class Msgs {
-	private static Main plugin = Main.getPlugin(Main.class);
+	private static final Main plugin = Main.getPlugin(Main.class);
 	
 	static void send(CommandSender sender, String msg) {
-	    String prefix = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("messages.prefix"));
+	    String prefix = ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("messages.prefix")));
 	    sender.sendMessage(prefix + " " + (ChatColor.translateAlternateColorCodes('&', msg)));	
 	}
 	
@@ -25,9 +27,8 @@ public class Msgs {
 		
   	  try {
   		  Player p = (Player)sender;
-  		  ActionBar.send(p, ChatColor.translateAlternateColorCodes('&', msg));  
-  		  return;
-	  } catch (Exception e) { 
+  		  ActionBar.send(p, ChatColor.translateAlternateColorCodes('&', msg));
+      } catch (Exception e) {
 		  if(plugin.getConfig().getBoolean("options.debug")) {
        plugin.getLogger().info("[Debug] Failed to use hotbar message. Using normal msg instead. Make sure you use 1.15/1.14/1.13/1.12");
 		  }

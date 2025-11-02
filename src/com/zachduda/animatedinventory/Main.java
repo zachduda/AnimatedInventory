@@ -156,7 +156,7 @@ public class Main extends JavaPlugin implements Listener {
             metrics.shutdown();
         }
 
-        if (Bukkit.getOnlinePlayers().size() >= 1) {
+        if (!Bukkit.getOnlinePlayers().isEmpty()) {
             for (final Player online: Bukkit.getServer().getOnlinePlayers()) {
                 Cooldowns.removeAll(online);
             }

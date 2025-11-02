@@ -9,7 +9,7 @@ import org.bukkit.Particle;
 import org.bukkit.World;
 
 public class Particlez implements Listener {
-    private static Main plugin = Main.getPlugin(Main.class);
+    private static final Main plugin = Main.getPlugin(Main.class);
 
     private static void pErr(String name) {
     	plugin.getLogger().info("Error! Unable to display the " + name + " particle. Disabling particles...");
@@ -19,6 +19,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
+                assert world != null;
                 world.spawnParticle(Particle.EXPLOSION, p.getLocation().add(0, 1, 0), 3, 0.4D, 0.2D, 0.4D);
             } catch (Exception e) {
                 pErr("EXPLOSION_LARGE");
@@ -30,6 +31,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
+                assert world != null;
                 world.spawnParticle(Particle.WITCH, p.getLocation().add(0, 1, 0), 50, 0.2D, 0.2D, 0.2D);
             } catch (Exception e) {
             	pErr("SPELL_MOB");
@@ -41,6 +43,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
+                assert world != null;
                 world.spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 3, 0.4D, 0.2D, 0.4D, 0.1D);
             } catch (Exception e) {
             	pErr("FLAME");
@@ -52,6 +55,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
+                assert world != null;
                 world.spawnParticle(Particle.WITCH, p.getLocation().add(0, 1, 0), 50, 0.2D, 0.2D, 0.2D);
             } catch (Exception e) {
             	pErr("SPELL");
@@ -63,6 +67,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 World world = p.getLocation().getWorld();
+                assert world != null;
                 world.spawnParticle(Particle.DRIPPING_WATER, p.getLocation().add(0, 1, 0), 20, 0.2D, 0.2D, 0.2D);
             } catch (Exception e) {
             	pErr("DRIP_WATER");

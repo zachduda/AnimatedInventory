@@ -37,7 +37,7 @@ public class MC1_20 implements Listener {
     }
 
     static void emergencyRemove() {
-        if (Bukkit.getOnlinePlayers().size() == 0) {
+        if (Bukkit.getOnlinePlayers().isEmpty()) {
             return;
         }
 

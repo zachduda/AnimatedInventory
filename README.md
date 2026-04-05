@@ -13,8 +13,8 @@ You can find AnimatedInventory on our spigot page @: https://www.spigotmc.org/re
 AnimatedInventory supports maven through Jitpack:
 ```xml
 <repository>
-    <id>jitpack.io</id>
-    <url>https://jitpack.io</url>
+    <id>zachduda</id>
+    <url>https://zachduda.com/maven</url>
 </repository>
 ```
 ```xml

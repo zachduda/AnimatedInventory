@@ -1,7 +1,7 @@
 name: AnimatedInventory
 version: 8.0.0
 author: zach_attack
-website: https://www.spigotmc.org/resources/animatedinventory.59785/
+website: https://zachduda.com/animatedinventory
 main: com.zachduda.animatedinventory.Main
 description: Animates players inventories.
 api-version: 1.13

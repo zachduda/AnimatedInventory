@@ -3,6 +3,8 @@ package com.zachduda.animatedinventory;
 import java.io.File;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
@@ -54,8 +56,58 @@ public class Main extends JavaPlugin implements Listener {
 
     private Metrics metrics;
 
-    static final String version = Bukkit.getBukkitVersion().replace("-SNAPSHOT", "");
-    private final boolean supported = version.contains("1.13") || version.contains("1.14") || version.contains("1.15") || version.contains("1.16") || version.contains("1.17") || version.contains("1.18") || version.contains("1.19") || version.contains("1.20") ||  version.contains("1.21") || version.contains("26.1")  || version.contains("26.2");
+    private int mcMajorVersion;
+    private int mcMinorVersion;
+
+    public String getMCVersion() {
+
+        String this_ver = Bukkit.getBukkitVersion()
+                .toUpperCase()
+                .replaceAll("-.+$", "");
+
+        Pattern versionPattern = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
+        Matcher version = versionPattern.matcher(this_ver);
+
+        if (version.find()) {
+            String major = version.group(1);
+            String minor = version.group(2);
+            String patch = version.group(3);
+
+            if (patch == null) {
+                patch = "0";
+            }
+
+            this_ver = major + "." + minor + "." + patch;
+        } else {
+            return "X.XX";
+        }
+
+        mcMajorVersion = Integer.parseInt(version.group(1));
+        mcMinorVersion = Integer.parseInt(version.group(2));
+        int mcPatchVersion;
+        try {
+            mcPatchVersion = Integer.parseInt(version.group(3));
+        } catch (final Exception e) {
+            mcPatchVersion = 0;
+        }
+        return (version.group(1) + "." + version.group(2));
+    }
+
+    public boolean isSupported() {
+        getMCVersion();
+        if(mcMajorVersion == 1) {
+            if(mcMinorVersion >= 13) {
+                return true;
+            } else {
+                getLogger().warning("AnimatedInventory cannot run on 1.12 or lower.");
+            }
+        }
+        return mcMajorVersion == 26;
+    }
+
+    private final String version = getMCVersion();
+    private final boolean supported = isSupported();
+
 
     @SuppressWarnings("deprecation")
     public void onEnable() {

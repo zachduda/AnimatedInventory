@@ -105,7 +105,7 @@ public class Main extends JavaPlugin implements Listener {
         return mcMajorVersion == 26;
     }
 
-    private final String version = getMCVersion();
+    final String version = getMCVersion();
     private final boolean supported = isSupported();
 
 

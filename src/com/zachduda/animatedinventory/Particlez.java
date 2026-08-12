@@ -89,7 +89,7 @@ public class Particlez implements Listener {
         if (plugin.getConfig().getBoolean("features.use-particles")) {
             try {
                 final String v = plugin.version;
-                if(v.contains("1.13") || v.contains("1.14") || v.contains("1.15") || v.contains("1.16") || v.contains("1.17")) {
+                if(plugin.isSupported()) {
                     p.spawnParticle(Particle.valueOf("BARRIER"), p.getLocation().add(0, 1, 0), 5, 0.5D, 0.3D, 0.5D);
                 } else {
                     p.spawnParticle(Particle.valueOf("BLOCK_MARKER"), p.getLocation().add(0, 1, 0), 5, 0.5D, 0.3D, 0.5D, Bukkit.createBlockData(Material.valueOf("BARRIER")));

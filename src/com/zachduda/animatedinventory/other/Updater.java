@@ -40,9 +40,11 @@ public class Updater {
                     Bukkit.getScheduler().runTaskAsynchronously(javaPlugin, () -> {
                         try {
                             URL url = new URL("https://api.github.com/repos/zachduda/AnimatedInventory/releases");
-                            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
-                            String str = br.readLine();
-                            JSONArray rawja = (JSONArray) new JSONParser().parse(str);
+                            JSONArray rawja;
+                            try (BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()))) {
+                                String str = br.readLine();
+                                rawja = (JSONArray) new JSONParser().parse(str);
+                            }
                             for (Object o : rawja) {
                                 JSONObject jsonObject = (JSONObject) o;
                                 final String vs = ((String) jsonObject.get("tag_name")).replace("v", "");

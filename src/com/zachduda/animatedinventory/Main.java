@@ -169,7 +169,7 @@ public class Main extends JavaPlugin implements Listener {
         }
 
         if (debug) {
-            Bukkit.getConsoleSender().sendMessage("[AnimatedInventory] [Debug] Using Minecraft Version: §a" + Bukkit.getBukkitVersion());
+            Bukkit.getConsoleSender().sendMessage("[AnimatedInventory] [Debug] Using Minecraft Version: §a" + getMCVersion());
         }
 
         disabledclearworld.clear();
@@ -305,8 +305,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     void noPermission(CommandSender sender) {
-        if (sender instanceof Player) {
-            Player p = (Player) sender;
+        if (sender instanceof Player p) {
             bass(p);
         }
 
@@ -489,8 +488,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        if (event.getEntity() instanceof Player) {
-            Player p = (Player) event.getEntity();
+        if (event.getEntity() instanceof Player p) {
             if (Cooldowns.activefortune.containsKey(p)) {
                 event.setCancelled(true);
                 return;
@@ -608,8 +606,7 @@ public class Main extends JavaPlugin implements Listener {
             sender.sendMessage("§b§lA§r§bnimated §f§lI§r§fnventory");
             sender.sendMessage("§7/ai help §7§ofor commands & links.");
             sender.sendMessage("");
-            if (sender instanceof Player) {
-                final Player p = (Player) sender;
+            if (sender instanceof Player p) {
                 pop(p);
             }
         } else
@@ -649,21 +646,18 @@ public class Main extends JavaPlugin implements Listener {
                         }
                     }
                     sender.sendMessage("§8§m------------------------------------------");
-                    if (sender instanceof Player) {
-                        final Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         pop(p);
                     }
                 } else if (args[0].equalsIgnoreCase("version")) {
                     Msgs.send(sender, "&7You're currently running &f&lv" + getDescription().getVersion());
-                    if (sender instanceof Player) {
-                        final Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         pop(p);
                     }
 
                 } else if (args[0].equalsIgnoreCase("purge")) {
 
-                    if (sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (sender instanceof Player p) {
 
                         if (!sender.hasPermission("animatedinv.admin") && !sender.isOp()) {
                             noPermission(p);
@@ -678,19 +672,17 @@ public class Main extends JavaPlugin implements Listener {
                     }
 
                     Msgs.send(sender, "&c&lCache Purged. &fAny old cache has been deleted.");
-                    if (sender instanceof Player) {
-                        final Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         pop(p);
                     }
                     Clear.purgeCache();
                 } else if (args[0].equalsIgnoreCase("undoclear")) {
 
-                    if (!(sender instanceof Player)) {
+                    if (!(sender instanceof Player p)) {
                         Msgs.send(sender, getConfig().getString("messages.no-player"));
                         return true;
                     }
 
-                    Player p = (Player) sender;
                     if (!getConfig().getBoolean("features.clearing.inv-backup.enabled")) {
                         bass(p);
                         Msgs.send(sender, getConfig().getString("messages.backups-disabled"));
@@ -779,7 +771,7 @@ public class Main extends JavaPlugin implements Listener {
                     }
 
                 } else if (args[0].equalsIgnoreCase("glitched")) {
-                    if (!(sender instanceof Player)) {
+                    if (!(sender instanceof Player p)) {
                         Msgs.send(sender, "&c&lSorry. &fOnly players can do this.");
                         return true;
                     }
@@ -789,7 +781,6 @@ public class Main extends JavaPlugin implements Listener {
                         return true;
                     }
 
-                    final Player p = (Player) sender;
                     pop(p);
                     Cooldowns.activefortune.remove(p);
                     Cooldowns.active.remove(p);
@@ -800,8 +791,7 @@ public class Main extends JavaPlugin implements Listener {
                         noPermission(sender);
                         return true;
                     }
-                    if (sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         pop(p);
                     }
                     if (debug) {
@@ -819,8 +809,7 @@ public class Main extends JavaPlugin implements Listener {
                         }
                     }
                 } else if (args[0].equalsIgnoreCase("toggle")) {
-                    if (!sender.hasPermission("animatedinv.admin") && !sender.isOp() && sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (!sender.hasPermission("animatedinv.admin") && !sender.isOp() && sender instanceof Player p) {
                         noPermission(p);
                         return true;
                     }
@@ -832,8 +821,7 @@ public class Main extends JavaPlugin implements Listener {
                         reloadConfig();
                         configChecks();
                         Msgs.send(sender, "&fYou have &c&lDISABLED &fclearing & fortunes.");
-                        if (sender instanceof Player) {
-                            Player p = (Player) sender;
+                        if (sender instanceof Player p) {
                             pop(p);
                         }
                     } else {
@@ -844,22 +832,19 @@ public class Main extends JavaPlugin implements Listener {
                         configChecks();
                         if (!getConfig().getBoolean("features.clearing.enabled")) {
                             Msgs.send(sender, "&c&lError! &fCouldn't re-enable clearing, are all clearing animations set to false?");
-                            if (sender instanceof Player) {
-                                Player p = (Player) sender;
+                            if (sender instanceof Player p) {
                                 bass(p);
                             }
                         } else {
                             Msgs.send(sender, "&fYou have &a&lENABLED &fclearing & fortunes.");
-                            if (sender instanceof Player) {
-                                Player p = (Player) sender;
+                            if (sender instanceof Player p) {
                                 pop(p);
                             }
                         }
                     }
                 } else if (args[0].equalsIgnoreCase("reload")) {
                     if (!sender.hasPermission("animatedinv.admin") || !sender.isOp()) {
-                        if (sender instanceof Player) {
-                            Player p = (Player) sender;
+                        if (sender instanceof Player p) {
                             noPermission(p);
                             return true;
                         }
@@ -877,17 +862,15 @@ public class Main extends JavaPlugin implements Listener {
                         getLogger().info("[Debug] Disabled Clear Worlds: " + disabledclearworld.toString());
                         getLogger().info("[Debug] Disabled Fortune Worlds: " + disabledfortuneworld.toString());
                     }
-                    if (sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         levelup(p);
                     }
 
                 } else if (args[0].equalsIgnoreCase("fortune")) {
-                    if (!(sender instanceof Player)) {
+                    if (!(sender instanceof Player p)) {
                         Msgs.send(sender, getConfig().getString("messages.no-player"));
                         return true;
                     }
-                    Player p = (Player) sender;
 
                     if (Cooldowns.active.containsKey(p) || Cooldowns.activefortune.containsKey(p)) {
                         return true;
@@ -939,12 +922,10 @@ public class Main extends JavaPlugin implements Listener {
                         errorMsg(p, 10, e);
                     }
                 } else if (args[0].equalsIgnoreCase("clear")) {
-                    if (!(sender instanceof Player)) {
+                    if (!(sender instanceof Player p)) {
                         Msgs.send(sender, getConfig().getString("messages.no-player"));
                         return true;
                     }
-
-                    Player p = (Player) sender;
 
                     if (!p.hasPermission("animatedinv.clear")) {
                         noPermission(p);
@@ -978,8 +959,7 @@ public class Main extends JavaPlugin implements Listener {
                     }
 
                 } else {
-                    if (sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         bass(p);
                     }
                     Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.not-a-command")).replace("%cmd%", args[0]));
@@ -990,17 +970,15 @@ public class Main extends JavaPlugin implements Listener {
             }
         } else if (args.length == 2 && args[0].equalsIgnoreCase("undoclear")) {
 
-            if (sender instanceof Player) {
+            if (sender instanceof Player p) {
                 if (!sender.hasPermission("animatedinv.clear.undo.others") && !sender.isOp()) {
-                    Player p = (Player) sender;
                     noPermission(p);
                     return true;
                 }
             }
 
             if (!getConfig().getBoolean("features.clearing.inv-backup.enabled")) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, getConfig().getString("messages.backups-disabled"));
@@ -1009,8 +987,7 @@ public class Main extends JavaPlugin implements Listener {
 
             Player target = Bukkit.getServer().getPlayer(args[1]);
             if (target == null) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.not-online")).replace("%player%", args[1]));
@@ -1018,8 +995,7 @@ public class Main extends JavaPlugin implements Listener {
             }
 
             if (Cooldowns.active.containsKey(target)) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.already-clearing")).replace("%player%", args[1]));
@@ -1027,8 +1003,7 @@ public class Main extends JavaPlugin implements Listener {
             }
 
             if (Cooldowns.activefortune.containsKey(target)) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.already-getting-fortune")).replace("%player%", args[1]));
@@ -1041,8 +1016,7 @@ public class Main extends JavaPlugin implements Listener {
 
                 if (!f.exists()) {
                     Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.backup-no-file-other")).replace("%player%", target.getName()));
-                    if (sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         bass(p);
                     }
                     return true;
@@ -1051,8 +1025,7 @@ public class Main extends JavaPlugin implements Listener {
                     Clear.undoClear(target);
                 } catch (Exception e) {
                     Msgs.send(sender, getConfig().getString("messages.backup-error"));
-                    if (sender instanceof Player) {
-                        Player p = (Player) sender;
+                    if (sender instanceof Player p) {
                         bass(p);
                     }
                     getLogger().info("Hm. We were unable to restore " + target.getName() + "'s backup.");
@@ -1080,14 +1053,12 @@ public class Main extends JavaPlugin implements Listener {
 
                 levelup(target);
 
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     levelup(p);
                 }
 
             } catch (Exception finalerr) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, "&c&lHm. &fWe were not able to do that to &7" + target.getName());
@@ -1101,8 +1072,7 @@ public class Main extends JavaPlugin implements Listener {
         } else if (args.length == 2 && args[0].equalsIgnoreCase("clear")) {
 
             if (!sender.hasPermission("animatedinv.clear.others") && !sender.isOp()) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     noPermission(p);
                 } else {
                     Msgs.send(sender, "&cSorry, but CONSOLE is not allowed to clear others.");
@@ -1112,26 +1082,22 @@ public class Main extends JavaPlugin implements Listener {
 
             Player target = Bukkit.getServer().getPlayer(args[1]);
             if (target == null) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.not-online")).replace("%player%", args[1]));
             } else if (Cooldowns.active.containsKey(target)) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.already-clearing")).replace("%player%", args[1]));
             } else if (Cooldowns.activefortune.containsKey(target)) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.already-getting-fortune")).replace("%player%", args[1]));
             } else {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     levelup(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.clear-other-success")).replace("%player%", args[1]));
@@ -1140,9 +1106,8 @@ public class Main extends JavaPlugin implements Listener {
             return true;
 
         } else if (args.length == 2 && args[0].equalsIgnoreCase("fortune")) {
-            if (sender instanceof Player) {
+            if (sender instanceof Player p) {
                 if (!sender.hasPermission("animatedinv.fortune.others") && !sender.isOp()) {
-                    Player p = (Player) sender;
                     noPermission(p);
                     return true;
                 }
@@ -1150,29 +1115,25 @@ public class Main extends JavaPlugin implements Listener {
 
             Player target = Bukkit.getServer().getPlayer(args[1]);
             if (target == null) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.not-online")).replace("%player%", args[1]));
                 return true;
             } else if (Cooldowns.active.containsKey(target)) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.already-clearing")).replace("%player%", args[1]));
                 return true;
             } else if (Cooldowns.activefortune.containsKey(target)) {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     bass(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.already-getting-fortune")).replace("%player%", args[1]));
                 return true;
             } else {
-                if (sender instanceof Player) {
-                    Player p = (Player) sender;
+                if (sender instanceof Player p) {
                     levelup(p);
                 }
                 Msgs.send(sender, Objects.requireNonNull(getConfig().getString("messages.fortune-other-success")).replace("%player%", args[1]));
@@ -1185,8 +1146,7 @@ public class Main extends JavaPlugin implements Listener {
             }
             return true;
         } else { // too many args & not clear or fortune for players
-            if (sender instanceof Player) {
-                Player p = (Player) sender;
+            if (sender instanceof Player p) {
                 bass(p);
             }
             Msgs.send(sender, "&cToo many args for: &f/" + cmd.getName() + " " + args[0]);
@@ -1196,13 +1156,12 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onDamage(EntityDamageEvent e) {
-        if (e.getEntity() instanceof Player) {
+        if (e.getEntity() instanceof Player player) {
             if (e.getCause() == DamageCause.FALL) {
                 return;
             }
 
             if (getConfig().getBoolean("features.fortunes.prevent-if-being-hurt")) {
-                Player player = (Player) e.getEntity();
                 Cooldowns.isBeinghurt.put(player, System.currentTimeMillis());
             }
         }
@@ -1271,7 +1230,7 @@ public class Main extends JavaPlugin implements Listener {
 
             // This is a dev-join message sent to me only. It's to help me understand which servers support my work <3
             if (p.getUniqueId().toString().equals("6191ff85-e092-4e9a-94bd-63df409c2079")) {
-                p.sendMessage(ChatColor.GRAY + "This server is running " + ChatColor.WHITE + "AnimatedInventory " + ChatColor.GOLD + "v" + getDescription().getVersion() + ChatColor.GRAY + " for " + Bukkit.getBukkitVersion().replace("-SNAPSHOT", ""));
+                p.sendMessage(ChatColor.GRAY + "This server is running " + ChatColor.WHITE + "AnimatedInventory " + ChatColor.GOLD + "v" + getDescription().getVersion() + ChatColor.GRAY + " for " + getMCVersion());
             }
             // I kindly ask you leave the above portion in ANY modification of this plugin. Thank You!
 

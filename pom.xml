@@ -10,8 +10,8 @@
     <version>8.0.0</version>
     <description>Animates players inventories.</description>
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spigot.version>26.2-R0.1-SNAPSHOT</spigot.version>
     </properties>

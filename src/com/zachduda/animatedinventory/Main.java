@@ -252,12 +252,13 @@ public class Main extends JavaPlugin implements Listener {
             getLogger().info("All clear animations were turned off! Disabling Clearing...");
         }
 
+        String cooldownTime = getConfig().getString("options.cooldowns.time");
         if (getConfig().getBoolean("options.cooldowns.enabled") &&
                 (getConfig().getInt("options.cooldowns.time") == 0 ||
-                        Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") ||
-                        Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("disabled") ||
-                        Objects.requireNonNull(getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("off") ||
-                        getConfig().getString("options.cooldowns.time") == null)) {
+                        cooldownTime == null ||
+                        cooldownTime.equalsIgnoreCase("none") ||
+                        cooldownTime.equalsIgnoreCase("disabled") ||
+                        cooldownTime.equalsIgnoreCase("off"))) {
             getConfig().set("options.cooldowns.enabled", false);
             getConfig().set("options.cooldowns.time", 0);
             saveConfig();
@@ -272,19 +273,19 @@ public class Main extends JavaPlugin implements Listener {
                 getLogger().info("Found Essentials. /clear & /ci override disabled in config.");
             }
         }
-        if (getConfig().getBoolean("features.clearing.animations.Explode_Animation")) {
+        if (getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled")) {
             if ((getServer().getPluginManager().isPluginEnabled("ViaVersion") && (getServer().getPluginManager().getPlugin("ViaVersion") != null))) {
-                if (getConfig().getBoolean("features.clearing.animations.Explode_Animation")) {
+                if (getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled")) {
                     getLogger().info("HEADS UP: The TNT Animation has a known bug with ViaVersion. We've disabled this animation for you.");
-                    getConfig().set("features.clearing.animations.Explode_Animation", false);
+                    getConfig().set("features.clearing.animations.Explode_Animation.enabled", false);
                     saveConfig();
                     reloadConfig();
                 }
             } else
             if (getServer().getPluginManager().isPluginEnabled("ProtocolSupport") && (getServer().getPluginManager().getPlugin("ProtocolSupport") != null)) {
-                if (getConfig().getBoolean("features.clearing.animations.Explode_Animation")) {
+                if (getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled")) {
                     getLogger().info("HEADS UP: The TNT Animation has a known bug with ProtocolSupport. This bug can cause players to crash!");
-                    getConfig().set("features.clearing.animations.Explode_Animation", false);
+                    getConfig().set("features.clearing.animations.Explode_Animation.enabled", false);
                     saveConfig();
                     reloadConfig();
                 }
@@ -470,14 +471,14 @@ public class Main extends JavaPlugin implements Listener {
                 Bukkit.dispatchCommand(p, "ai clear");
                 return;
             }
-            if (e.getMessage().toLowerCase().contains("/ci ")) {
+            if (e.getMessage().toLowerCase().startsWith("/ci ")) {
                 e.setCancelled(true);
-                Bukkit.dispatchCommand(p, "ai clear " + e.getMessage().replace("/ci ", ""));
+                Bukkit.dispatchCommand(p, "ai clear " + e.getMessage().substring(4));
                 return;
             }
-            if (e.getMessage().toLowerCase().contains("/clear ")) {
+            if (e.getMessage().toLowerCase().startsWith("/clear ")) {
                 e.setCancelled(true);
-                Bukkit.dispatchCommand(p, "ai clear " + e.getMessage().replace("/clear ", ""));
+                Bukkit.dispatchCommand(p, "ai clear " + e.getMessage().substring(7));
             }
         }
     }
@@ -897,6 +898,7 @@ public class Main extends JavaPlugin implements Listener {
                         if (p.getHealth() < getConfig().getDouble("features.fortunes.health-restriction.min")) {
                             bass(p);
                             Msgs.sendBar(sender, Objects.requireNonNull(getConfig().getString("messages.fortune-need-more-health")).replace("%num%", Double.toString(getConfig().getDouble("features.fortunes.health-restriction.min") / 2)));
+                            return true;
                         }
                     }
 

@@ -61,7 +61,8 @@ public class Cooldowns implements Listener {
 
 		if (plugin.getConfig().getBoolean("options.cooldowns.enabled")) {
 			try {
-				if (Objects.requireNonNull(plugin.getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") ||
+				String cooldownTime = plugin.getConfig().getString("options.cooldowns.time");
+				if ("none".equalsIgnoreCase(cooldownTime) ||
 						plugin.getConfig().getInt("options.cooldowns.time") == 0) {
 
 					Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> cooldown.remove(p.getPlayer()), 20L);
@@ -70,7 +71,8 @@ public class Cooldowns implements Listener {
 
 				Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
 
-					if (!Objects.requireNonNull(plugin.getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") &&
+					String time = plugin.getConfig().getString("options.cooldowns.time");
+					if (!"none".equalsIgnoreCase(time) &&
 							!(plugin.getConfig().getInt("options.cooldowns.time") == 0)) {
 						cooldown.remove(p.getPlayer());
 					}
@@ -88,7 +90,8 @@ public class Cooldowns implements Listener {
 
 	static void startFileCooldown(final Player p) {
 		try {
-			if (Objects.requireNonNull(plugin.getConfig().getString("features.clearing.inv-backup.backup-cooldown")).equalsIgnoreCase("none") ||
+			String backupCooldown = plugin.getConfig().getString("features.clearing.inv-backup.backup-cooldown");
+			if ("none".equalsIgnoreCase(backupCooldown) ||
 					plugin.getConfig().getInt("features.clearing.inv-backup.backup-cooldown") == 0) {
 				return;
 			} // end of if time set to 0
@@ -97,7 +100,8 @@ public class Cooldowns implements Listener {
 
 			Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
 
-				if (!Objects.requireNonNull(plugin.getConfig().getString("features.clearing.inv-backup.backup-cooldown")).equalsIgnoreCase("none") &&
+				String cooldownVal = plugin.getConfig().getString("features.clearing.inv-backup.backup-cooldown");
+				if (!"none".equalsIgnoreCase(cooldownVal) &&
 						!(plugin.getConfig().getInt("features.clearing.inv-backup.backup-cooldown") == 0)) {
 					filecooldown.remove(p.getPlayer());
 				}
@@ -119,7 +123,8 @@ public class Cooldowns implements Listener {
 			Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
 				active.remove(p.getPlayer());
 
-				if (Objects.requireNonNull(plugin.getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") ||
+				String cooldownTime = plugin.getConfig().getString("options.cooldowns.time");
+				if ("none".equalsIgnoreCase(cooldownTime) ||
 						plugin.getConfig().getInt("options.cooldowns.time") == 0 || !plugin.getConfig().getBoolean("options.cooldowns.enabled")) {
 					return;
 				}
@@ -136,7 +141,8 @@ public class Cooldowns implements Listener {
 		try {
 			activefortune.remove(p.getPlayer());
 
-			if (Objects.requireNonNull(plugin.getConfig().getString("options.cooldowns.time")).equalsIgnoreCase("none") ||
+			String cooldownTime = plugin.getConfig().getString("options.cooldowns.time");
+			if ("none".equalsIgnoreCase(cooldownTime) ||
 					plugin.getConfig().getInt("options.cooldowns.time") == 0 || !plugin.getConfig().getBoolean("options.cooldowns.enabled")) {
 				return;
 			}

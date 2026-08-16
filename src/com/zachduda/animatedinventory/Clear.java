@@ -36,8 +36,12 @@ public class Clear {
 
 			int purgeSec = plugin.getConfig().getInt("features.clearing.inv-backup.erase-after");
 			File cache = new File(plugin.getDataFolder(), File.separator + "Cache");
+			File[] files = cache.listFiles();
+			if (files == null) {
+				return;
+			}
 
-			for (File cachefile: cache.listFiles()) {
+			for (File cachefile: files) {
 
 				File f = new File(cachefile.getPath());
 				FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);

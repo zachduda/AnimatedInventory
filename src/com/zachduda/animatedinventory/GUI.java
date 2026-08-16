@@ -1,7 +1,6 @@
 package com.zachduda.animatedinventory;
 
 import java.util.ArrayList;
-import java.util.Objects;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -76,7 +75,11 @@ public class GUI implements Listener {
             if ((e.getCurrentItem() == null) || (e.getCurrentItem().getType().equals(Material.AIR))) {
                 return;
             }
-            String item = Objects.requireNonNull(e.getCurrentItem().getItemMeta()).getDisplayName();
+            ItemMeta meta = e.getCurrentItem().getItemMeta();
+            if (meta == null || !meta.hasDisplayName()) {
+                return;
+            }
+            String item = meta.getDisplayName();
             if (e.getSlot() == 12) {
                 if (item.contains("YES")) {
                     p.closeInventory();

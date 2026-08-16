@@ -211,6 +211,7 @@ public class Clear {
 		PlayerClearInventoryEvent pce = new PlayerClearInventoryEvent(p);
 		Bukkit.getPluginManager().callEvent(pce);
 		if (pce.isCancelled()) {
+			Cooldowns.active.remove(p);
 			return;
 		}
 

@@ -93,6 +93,7 @@ public class MC1_20 implements Listener {
         PlayerFortuneEvent pfe = new PlayerFortuneEvent(p);
         Bukkit.getPluginManager().callEvent(pfe);
         if (pfe.isCancelled()) {
+            Cooldowns.activefortune.remove(p);
             return;
         }
 

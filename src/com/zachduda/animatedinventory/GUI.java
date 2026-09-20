@@ -1,7 +1,6 @@
 package com.zachduda.animatedinventory;
 
-import java.util.ArrayList;
-import java.util.Objects;
+import java.util.Collections;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -11,87 +10,103 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import net.md_5.bungee.api.ChatColor;
-
 public class GUI implements Listener {
-    static String title = "§8Are you §lsure§r§8?";
-    static Main plugin = Main.getPlugin(Main.class);
+
+    static final String TITLE = "§8Are you §lsure§r§8?";
+
+    private static final Main plugin = Main.getPlugin(Main.class);
+
+    private static final int SIZE = 27;
+    private static final int YES_SLOT = 12;
+    private static final int NO_SLOT = 14;
+
+    /**
+     * Marks the confirm menu as ours.
+     *
+     * Clicks used to be matched on the window title alone, so any inventory a
+     * player could name - a renamed shulker box, for instance - would be treated
+     * as the confirm prompt and could trigger a real clear.
+     */
+    private static final class ConfirmHolder implements InventoryHolder {
+        private Inventory inventory;
+
+        @Override
+        public Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private static ItemStack button(Material material, String name, String lore) {
+        final ItemStack item = new ItemStack(material);
+        final ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(name);
+            meta.setLore(Collections.singletonList(lore));
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
 
     static void confirmGUI(Player p) {
-        Inventory gui = Bukkit.getServer().createInventory(p, 27, title);
-        ItemStack mangos = new ItemStack(Material.LIME_CONCRETE);
-        ItemMeta mangosm = mangos.getItemMeta();
-        ArrayList < String > lore = new ArrayList<>();
+        final ConfirmHolder holder = new ConfirmHolder();
+        final Inventory gui = Bukkit.getServer().createInventory(holder, SIZE, TITLE);
+        holder.inventory = gui;
 
-        lore.add("§fClear my inventory.");
-        assert mangosm != null;
-        mangosm.setLore(lore);
-        mangosm.setDisplayName(ChatColor.GREEN + "§lYES");
-        mangos.setItemMeta(mangosm);
-
-        gui.setItem(12, mangos);
-        lore.clear();
-
-        ItemStack streakitem = new ItemStack(Material.RED_CONCRETE);
-
-        ItemMeta streakm = streakitem.getItemMeta();
-        ArrayList < String > slore = new ArrayList<>();
-
-        slore.add("§fKeep my inventory.");
-
-        assert streakm != null;
-        streakm.setLore(slore);
-        streakm.setDisplayName(ChatColor.RED + "§lNO");
-
-        streakitem.setItemMeta(streakm);
-        gui.setItem(14, streakitem);
-        slore.clear();
-
-        ItemStack blank0 = new ItemStack(Material.WHITE_STAINED_GLASS_PANE);
-        ItemMeta b0m = blank0.getItemMeta();
-        assert b0m != null;
-        b0m.setDisplayName("§f ");
-
-        for (int slot = 0; slot < gui.getSize(); slot++) {
-            if (gui.getItem(slot) == null) {
-                gui.setItem(slot, blank0);
-            }
+        // The filler used to have its display name set on a detached meta that was
+        // never written back, so every pane showed its vanilla item name.
+        final ItemStack filler = new ItemStack(Material.WHITE_STAINED_GLASS_PANE);
+        final ItemMeta fillerMeta = filler.getItemMeta();
+        if (fillerMeta != null) {
+            fillerMeta.setDisplayName("§f ");
+            filler.setItemMeta(fillerMeta);
         }
+
+        for (int slot = 0; slot < SIZE; slot++) {
+            gui.setItem(slot, filler);
+        }
+
+        gui.setItem(YES_SLOT, button(Material.LIME_CONCRETE, "§a§lYES", "§fClear my inventory."));
+        gui.setItem(NO_SLOT, button(Material.RED_CONCRETE, "§c§lNO", "§fKeep my inventory."));
+
         p.openInventory(gui);
         p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_XYLOPHONE, 2.0F, 2.0F);
-
     }
 
     @EventHandler
-    private void inventoryClick(InventoryClickEvent e) {
+    public void inventoryClick(InventoryClickEvent e) {
+        if (!(e.getView().getTopInventory().getHolder() instanceof ConfirmHolder)) {
+            return;
+        }
 
-        Player p = (Player) e.getWhoClicked();
+        e.setCancelled(true);
 
-        if (e.getView().getTitle().equalsIgnoreCase(title)) {
+        if (!(e.getWhoClicked() instanceof Player p)) {
+            return;
+        }
 
-            e.setCancelled(true);
-            if ((e.getCurrentItem() == null) || (e.getCurrentItem().getType().equals(Material.AIR))) {
-                return;
+        final ItemStack clicked = e.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
+
+        if (e.getSlot() == YES_SLOT && clicked.getType() == Material.LIME_CONCRETE) {
+            p.closeInventory();
+            // Re-check: the config could have been reloaded, or a cooldown could
+            // have started, while the prompt sat open.
+            if (plugin.canClear(p)) {
+                Clear.go(p);
             }
-            String item = Objects.requireNonNull(e.getCurrentItem().getItemMeta()).getDisplayName();
-            if (e.getSlot() == 12) {
-                if (item.contains("YES")) {
-                    p.closeInventory();
-                    Clear.go(p);
-                    return;
-                }
-            }
+            return;
+        }
 
-            if (e.getSlot() == 14) {
-                if (item.contains("NO")) {
-                    p.closeInventory();
-                    plugin.pop(p);
-                    Msgs.sendBar(p, "&c&lClear Canceled. &fYour inventory won't be cleared.");
-                }
-            }
+        if (e.getSlot() == NO_SLOT && clicked.getType() == Material.RED_CONCRETE) {
+            p.closeInventory();
+            plugin.pop(p);
+            Msgs.sendBar(p, "&c&lClear Canceled. &fYour inventory won't be cleared.");
         }
     }
 }

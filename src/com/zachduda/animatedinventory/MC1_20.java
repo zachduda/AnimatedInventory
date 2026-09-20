@@ -1,13 +1,12 @@
 package com.zachduda.animatedinventory;
 
 import java.util.Objects;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.Sound;
-import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
@@ -19,21 +18,47 @@ import com.zachduda.animatedinventory.api.PlayerFortuneEvent;
 public class MC1_20 implements Listener {
     private static final Main plugin = Main.getPlugin(Main.class);
 
-    static boolean moveslots = true;
+    /** Shared empty stack. Inventory#setItem copies, so one instance is enough. */
+    private static final ItemStack AIR = new ItemStack(Material.AIR);
+
+    /** Hotbar width. Every animation plays across these nine slots. */
+    private static final int HOTBAR = 9;
+
+    /** The ticks the fortune steps on while the hotbar spins. */
+    private static final long[] SPIN_TICKS = {
+            6, 15, 18, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
+            38, 39, 40, 42, 44, 47, 50, 53, 57, 61, 65, 69, 74, 79, 84, 89, 96, 102, 110
+    };
+
+    private static ItemStack named(Material material, String displayName) {
+        final ItemStack item = new ItemStack(material);
+        final ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(displayName);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private static ItemStack blank(Material material) {
+        return named(material, "§a§e");
+    }
+
+    private static ItemStack fortuneItem(String path, Material material) {
+        return named(material, ChatColor.translateAlternateColorCodes('&',
+                Objects.requireNonNull(plugin.getConfig().getString(path))));
+    }
 
     static void putTokenItem(Player p) {
-        final ItemStack token = new ItemStack(Material.valueOf(Objects.requireNonNull(plugin.getConfig().getString("features.clearing.token-item", "NAME_TAG"))));
-        ItemMeta tokenm = token.getItemMeta();
-        Objects.requireNonNull(tokenm).setDisplayName(ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.clearing.token"))));
-        token.setItemMeta(tokenm);
-        p.getInventory().setItem(22, token);
+        p.getInventory().setItem(22, Settings.token);
     }
 
     static boolean hasTokenItem(Player p) {
-        final ItemStack token = new ItemStack(Material.valueOf(Objects.requireNonNull(plugin.getConfig().getString("features.clearing.token-item", "NAME_TAG"))));
-        ItemMeta tokenm = token.getItemMeta();
-        Objects.requireNonNull(tokenm).setDisplayName(ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.clearing.token"))));
-        return p.getInventory().contains(token);
+        // This used to build the token item but never write the display name back
+        // onto the stack, so it matched any plain item of that material - which
+        // meant emergencyRemove() wiped the inventory of anyone merely carrying a
+        // minecart. Settings.token is the fully-built stack.
+        return Settings.token != null && p.getInventory().contains(Settings.token);
     }
 
     static void emergencyRemove() {
@@ -42,948 +67,399 @@ public class MC1_20 implements Listener {
         }
 
         try {
-            final ItemStack one = new ItemStack(Material.LIME_CONCRETE);
-            ItemMeta onem = one.getItemMeta();
-            assert onem != null;
-            onem.setDisplayName(ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.yes-block.name"))));
-            one.setItemMeta(onem);
+            final ItemStack one = fortuneItem("features.fortunes.yes-block.name", Material.LIME_CONCRETE);
+            final ItemStack two = fortuneItem("features.fortunes.no-block.name", Material.RED_CONCRETE);
 
-            final ItemStack two = new ItemStack(Material.RED_CONCRETE);
-            ItemMeta twom = two.getItemMeta();
-            assert twom != null;
-            twom.setDisplayName(ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.no-block.name"))));
-            two.setItemMeta(twom);
+            for (Player online : Bukkit.getServer().getOnlinePlayers()) {
+                Timeline.stop(online);
 
-            final ItemStack fglass = new ItemStack(Material.WHITE_STAINED_GLASS_PANE);
-            ItemMeta fglassm = fglass.getItemMeta();
-            assert fglassm != null;
-            fglassm.setDisplayName("§7§l§m---");
-            fglass.setItemMeta(fglassm);
-
-            for (Player online: Bukkit.getServer().getOnlinePlayers()) {
-                if (online.getInventory().contains(one) && online.getInventory().contains(two) || Cooldowns.activefortune.containsKey(online)) {
+                if (Cooldowns.isFortune(online)
+                        || (online.getInventory().contains(one) && online.getInventory().contains(two))) {
                     online.getInventory().clear();
-                    plugin.getLogger().info("Attempted to restore " + online.getName() + "'s inventory. (They were in the middle of a fortune)");
-                    Cooldowns.activefortune.remove(online);
+                    plugin.getLogger().info("Attempted to restore " + online.getName()
+                            + "'s inventory. (They were in the middle of a fortune)");
+                    Cooldowns.activefortune.remove(online.getUniqueId());
                     Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we have ended your fortune.");
                     plugin.bass(online);
                     try {
                         plugin.loadInv(online);
                     } catch (Exception e) {
-                        plugin.getLogger().info("ERROR! Couldn't restore " + online.getName() + "'s inventory on plugin disable!");
+                        plugin.getLogger().warning("ERROR! Couldn't restore " + online.getName()
+                                + "'s inventory on plugin disable!");
                     }
                     plugin.deleteInv(online);
                 }
 
-                if (hasTokenItem(online) || Cooldowns.active.containsKey(online)) {
+                if (Cooldowns.isClearing(online) || hasTokenItem(online)) {
                     online.getInventory().clear();
                     Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we force cleared your inventory.");
                     plugin.bass(online);
-                    Cooldowns.active.remove(online);
-                    plugin.getLogger().info("Attempted to clear " + online.getName() + "'s inventory. (They were in the middle of clearing.)");
+                    Cooldowns.active.remove(online.getUniqueId());
+                    plugin.getLogger().info("Attempted to clear " + online.getName()
+                            + "'s inventory. (They were in the middle of clearing.)");
                 }
             }
         } catch (Exception err) {
-            plugin.getLogger().info("Couldn't search player inventories on shutdown. Did you change the .jar?");
+            plugin.getLogger().warning("Couldn't search player inventories on shutdown. Did you change the .jar?");
+            plugin.debugError(err);
         }
     }
 
     public static void fortune(final Player p) {
-
-        PlayerFortuneEvent pfe = new PlayerFortuneEvent(p);
+        final PlayerFortuneEvent pfe = new PlayerFortuneEvent(p);
         Bukkit.getPluginManager().callEvent(pfe);
         if (pfe.isCancelled()) {
             return;
         }
 
-        boolean debug = (plugin.getConfig().getBoolean("options.debug"));
-        int good_luck_int = plugin.getConfig().getInt("features.fortunes.result.good-luck");
-
         plugin.saveInv(p);
 
-        final ItemStack wgp = new ItemStack(Material.WHITE_STAINED_GLASS_PANE);
-        ItemMeta wgpm = wgp.getItemMeta();
-        assert wgpm != null;
-        wgpm.setDisplayName("§7§l§m---");
-        wgp.setItemMeta(wgpm);
-
-        final ItemStack one = new ItemStack(Material.LIME_CONCRETE);
-        ItemMeta onem = one.getItemMeta();
-        assert onem != null;
-        onem.setDisplayName(ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.yes-block.name"))));
-        one.setItemMeta(onem);
-
-        final ItemStack two = new ItemStack(Material.RED_CONCRETE);
-        ItemMeta twom = two.getItemMeta();
-        assert twom != null;
-        twom.setDisplayName(ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.no-block.name"))));
-        two.setItemMeta(twom);
+        final ItemStack wgp = named(Material.WHITE_STAINED_GLASS_PANE, "§7§l§m---");
+        final ItemStack one = fortuneItem("features.fortunes.yes-block.name", Material.LIME_CONCRETE);
+        final ItemStack two = fortuneItem("features.fortunes.no-block.name", Material.RED_CONCRETE);
 
         plugin.pop(p);
-        p.getInventory().setItem(0, wgp);
-        p.getInventory().setItem(1, wgp);
+        for (int slot = 0; slot < HOTBAR; slot++) {
+            p.getInventory().setItem(slot, wgp);
+        }
         p.getInventory().setItem(2, one);
-        p.getInventory().setItem(3, wgp);
-        p.getInventory().setItem(4, wgp);
-        p.getInventory().setItem(5, wgp);
         p.getInventory().setItem(6, two);
-        p.getInventory().setItem(7, wgp);
-        p.getInventory().setItem(8, wgp);
 
-        Random generator = new Random();
-        int scount = 100;
-        int s = generator.nextInt(scount);
-        if (debug) {
-            plugin.getLogger().info("[Debug] Final Int Pick: " + s);
-            plugin.getLogger().info("[Debug] For Yes the # must be less than or equal to " + good_luck_int + ". Otherwise, it's no. Max Number: 100");
-        }
-        String spinmsg = "§f§l§o" + plugin.getConfig().getString("features.fortunes.spin-message");
-        String spinmsg2 = "§7§l§o" + plugin.getConfig().getString("features.fortunes.spin-message");
+        final int roll = ThreadLocalRandom.current().nextInt(100);
+        final boolean lucky = roll <= Settings.goodLuck;
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(0);
-        }, 6L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(1);
-        }, 15L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(2);
-        }, 18L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(3);
-        }, 20L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(4);
-        }, 22L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(5);
-        }, 23L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(6);
-        }, 24L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(7);
-        }, 25L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(8);
-        }, 26L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(0);
-        }, 27L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(1);
-        }, 28L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(2);
-        }, 29L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(3);
-        }, 30L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(4);
-        }, 31L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(5);
-        }, 32L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(6);
-        }, 33L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(7);
-        }, 34L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(8);
-        }, 35L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(0);
-        }, 36L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(1);
-        }, 37L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(2);
-        }, 38L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(3);
-        }, 39L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(4);
-        }, 40L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(5);
-        }, 42L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(6);
-        }, 44L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(7);
-        }, 47L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(8);
-        }, 50L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(0);
-        }, 53L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(1);
-        }, 57L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            Objects.requireNonNull(p).getInventory().setHeldItemSlot(2);
-        }, 61L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(3);
-        }, 65L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(4);
-        }, 69L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(5);
-        }, 74L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(6);
-        }, 79L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(7);
-        }, 84L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg);
-            p.getInventory().setHeldItemSlot(8);
-        }, 89L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            Msgs.sendBar(p, spinmsg2);
-            p.getInventory().setHeldItemSlot(0);
-        }, 96L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            p.getInventory().setHeldItemSlot(1);
-            Msgs.sendBar(p, spinmsg);
-        }, 102L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.tick(p);
-            p.getInventory().setHeldItemSlot(2);
-            Msgs.sendBar(p, spinmsg2);
-        }, 110L);
-        // FINAL FORTUNE ---------------------------------
-        if (s <= good_luck_int) {
-            PlayerFortuneEndEvent pfee = new PlayerFortuneEndEvent(p, true);
-            Bukkit.getPluginManager().callEvent(pfee);
-
-            if (plugin.getConfig().getBoolean("features.fortunes.result.notify-console")) {
-                plugin.getLogger().info(p.getName() + " got 'YES' on their fortune.");
-            }
-
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                Msgs.sendBar(p, plugin.getConfig().getString("features.fortunes.result.-yes"));
-                p.getInventory().setHeldItemSlot(2);
-                Particlez.yesParticle(p);
-            }, 123L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> Msgs.sendBar(p, plugin.getConfig().getString("features.fortunes.result.-yes")), 135L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                if (p.isOnline()) {
-                    plugin.clearingsound(p);
-                    p.getInventory().setHeldItemSlot(0);
-                    plugin.burp(p);
-                    try {
-                        plugin.loadInv(p);
-                    } catch (Exception e) {
-                        plugin.getLogger().info("ERROR! Couldn't load back " + p.getName() + "'s inventory after a fortune.");
-                    }
-                    plugin.deleteInv(p);
-                    Cooldowns.removeFortune(p);
-                    Msgs.sendBar(p, ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.clearing.done-msg"))));
-                }
-            }, 185L);
-        } else { // if yes int didn't match, it's a no from me, I'm out.
-            PlayerFortuneEndEvent pfee = new PlayerFortuneEndEvent(p, false);
-            Bukkit.getPluginManager().callEvent(pfee);
-
-            if (plugin.getConfig().getBoolean("features.fortunes.result.notify-console")) {
-                plugin.getLogger().info(p.getName() + " got 'NO' on their fortune.");
-            }
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                plugin.tick(p);
-                p.getInventory().setHeldItemSlot(3);
-                Msgs.sendBar(p, spinmsg);
-            }, 115L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                plugin.tick(p);
-                p.getInventory().setHeldItemSlot(4);
-                Msgs.sendBar(p, spinmsg2);
-            }, 122L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                plugin.tick(p);
-                p.getInventory().setHeldItemSlot(5);
-                Msgs.sendBar(p, spinmsg);
-            }, 128L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                plugin.tick(p);
-                p.getInventory().setHeldItemSlot(6);
-                Msgs.sendBar(p, plugin.getConfig().getString("features.fortunes.result.-no"));
-                Particlez.noParticle(p);
-            }, 136L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> Msgs.sendBar(p, plugin.getConfig().getString("features.fortunes.result.-no")), 150L);
-            Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-                if (p.isOnline()) {
-                    plugin.clearingsound(p);
-                    p.getInventory().setHeldItemSlot(0);
-                    plugin.burp(p);
-                    try {
-                        plugin.loadInv(p);
-                    } catch (Exception e) {
-                        plugin.getLogger().info("ERROR! Couldn't load back " + p.getName() + "'s inventory after a fortune.");
-                    }
-                    plugin.deleteInv(p);
-                    Cooldowns.removeFortune(p);
-                    Msgs.sendBar(p, ChatColor.translateAlternateColorCodes('&', Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.done-msg"))));
-                }
-            }, 200L);
+        if (Settings.debug) {
+            plugin.getLogger().info("[Debug] Final Int Pick: " + roll);
+            plugin.getLogger().info("[Debug] For Yes the # must be less than or equal to "
+                    + Settings.goodLuck + ". Otherwise, it's no. Max Number: 100");
         }
 
+        final String spin = "§f§l§o" + plugin.getConfig().getString("features.fortunes.spin-message");
+        final String spinAlt = "§7§l§o" + plugin.getConfig().getString("features.fortunes.spin-message");
+        final String result = plugin.getConfig().getString(
+                lucky ? "features.fortunes.result.-yes" : "features.fortunes.result.-no");
+        final String doneMsg = ChatColor.translateAlternateColorCodes('&',
+                Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.done-msg", "&a&lDone!")));
+
+        final Timeline timeline = new Timeline(plugin, p);
+
+        // The hotbar walks one slot per step and the message alternates shade, so
+        // the whole spin comes off the tick table rather than forty copied blocks.
+        for (int i = 0; i < SPIN_TICKS.length; i++) {
+            final int slot = i % HOTBAR;
+            final String msg = (i % 2 == 0) ? spinAlt : spin;
+            timeline.at(SPIN_TICKS[i], player -> {
+                plugin.tick(player);
+                Msgs.sendBar(player, msg);
+                player.getInventory().setHeldItemSlot(slot);
+            });
+        }
+
+        final PlayerFortuneEndEvent pfee = new PlayerFortuneEndEvent(p, lucky);
+        Bukkit.getPluginManager().callEvent(pfee);
+
+        if (Settings.notifyConsole) {
+            plugin.getLogger().info(p.getName() + " got '" + (lucky ? "YES" : "NO") + "' on their fortune.");
+        }
+
+        final long finishTick;
+        if (lucky) {
+            timeline.at(123L, player -> {
+                Msgs.sendBar(player, result);
+                player.getInventory().setHeldItemSlot(2);
+                Particlez.yesParticle(player);
+            });
+            timeline.at(135L, player -> Msgs.sendBar(player, result));
+            finishTick = 185L;
+        } else {
+            // A "no" keeps spinning past the yes block and lands on slot 6.
+            final long[] extraTicks = {115L, 122L, 128L};
+            for (int i = 0; i < extraTicks.length; i++) {
+                final int slot = 3 + i;
+                final String msg = (i % 2 == 0) ? spin : spinAlt;
+                timeline.at(extraTicks[i], player -> {
+                    plugin.tick(player);
+                    player.getInventory().setHeldItemSlot(slot);
+                    Msgs.sendBar(player, msg);
+                });
+            }
+            timeline.at(136L, player -> {
+                plugin.tick(player);
+                player.getInventory().setHeldItemSlot(6);
+                Msgs.sendBar(player, result);
+                Particlez.noParticle(player);
+            });
+            timeline.at(150L, player -> Msgs.sendBar(player, result));
+            finishTick = 200L;
+        }
+
+        timeline.at(finishTick, player -> {
+            plugin.clearingsound(player);
+            player.getInventory().setHeldItemSlot(0);
+            plugin.burp(player);
+            try {
+                plugin.loadInv(player);
+            } catch (Exception e) {
+                plugin.getLogger().warning("ERROR! Couldn't load back " + player.getName()
+                        + "'s inventory after a fortune.");
+                plugin.debugError(e);
+            }
+            plugin.deleteInv(player);
+            Cooldowns.removeFortune(player);
+            Msgs.sendBar(player, doneMsg);
+        });
+
+        timeline.start();
     }
 
-    //_______________________________________________________ ANIMATION 2
-    public static void animation2(CommandSender sender) {
-        final Player p = (Player) sender;
-
-        final ItemStack redwool = new ItemStack(Material.RED_WOOL);
-        ItemMeta redwoolmeta = redwool.getItemMeta();
-        Objects.requireNonNull(redwoolmeta).setDisplayName("§a§e");
-        redwool.setItemMeta(redwoolmeta);
-
-        final ItemStack orangewool = new ItemStack(Material.ORANGE_WOOL);
-        ItemMeta orangewoolmeta = redwool.getItemMeta();
-        orangewoolmeta.setDisplayName("§a§e");
-        orangewool.setItemMeta(orangewoolmeta);
-
-
-        final ItemStack yellowwool = new ItemStack(Material.YELLOW_WOOL);
-        ItemMeta yellowwoolmeta = redwool.getItemMeta();
-        yellowwoolmeta.setDisplayName("§a§e");
-        yellowwool.setItemMeta(yellowwoolmeta);
-
-        final ItemStack greenwool = new ItemStack(Material.GREEN_WOOL);
-        ItemMeta greenwoolmeta = redwool.getItemMeta();
-        greenwoolmeta.setDisplayName("§a§e");
-        greenwool.setItemMeta(greenwoolmeta);
-
-        final ItemStack bluewool = new ItemStack(Material.BLUE_WOOL);
-        ItemMeta bluewoolmeta = redwool.getItemMeta();
-        bluewoolmeta.setDisplayName("§a§e");
-        bluewool.setItemMeta(bluewoolmeta);
-
-        final ItemStack purplewool = new ItemStack(Material.PURPLE_WOOL);
-        ItemMeta purplewoolmeta = redwool.getItemMeta();
-        purplewoolmeta.setDisplayName("§a§e");
-        purplewool.setItemMeta(purplewoolmeta);
+    //_______________________________________________________ ANIMATION 1 (Panes)
+    public static void animation1(Player p) {
+        final ItemStack glass = blank(Material.WHITE_STAINED_GLASS_PANE);
 
         putTokenItem(p);
 
-        final ItemStack air = new ItemStack(Material.AIR);
-        ItemMeta airmeta = air.getItemMeta();
-        air.setItemMeta(airmeta);
+        final Timeline timeline = new Timeline(plugin, p);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.clearingsound(p);
-            p.getInventory().setItem(0, redwool);
-            p.getInventory().setItem(1, orangewool);
-            p.getInventory().setItem(2, yellowwool);
-            p.getInventory().setItem(3, greenwool);
-            p.getInventory().setItem(4, bluewool);
-            p.getInventory().setItem(5, purplewool);
-            p.getInventory().setItem(6, redwool);
-            p.getInventory().setItem(7, orangewool);
-            p.getInventory().setItem(8, yellowwool);
+        // Panes sweep in left to right, then back out right to left.
+        for (int i = 0; i < HOTBAR; i++) {
+            final int slot = i;
+            timeline.at(i, player -> {
+                player.getInventory().setItem(slot, glass);
+                hold(player, Math.min(slot + 1, HOTBAR - 1));
+                if (slot == 1 || slot == 4 || slot == 7) {
+                    plugin.clearingsound(player);
+                }
+            });
+        }
 
-        }, 0);
+        for (int i = 0; i < HOTBAR; i++) {
+            final int slot = (HOTBAR - 1) - i;
+            final long tick = HOTBAR + i;
+            timeline.at(tick, player -> {
+                player.getInventory().setItem(slot, AIR);
+                if (slot >= 5) {
+                    hold(player, slot - 1);
+                }
+                if (slot == 8) {
+                    plugin.clearingsound(player);
+                }
+            });
+        }
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.clearingsound(p);
-            p.getInventory().setItem(0, yellowwool);
-            p.getInventory().setItem(1, redwool);
-            p.getInventory().setItem(2, orangewool);
-            p.getInventory().setItem(3, yellowwool);
-            p.getInventory().setItem(4, greenwool);
-            p.getInventory().setItem(5, bluewool);
-            p.getInventory().setItem(6, purplewool);
-            p.getInventory().setItem(7, redwool);
-            p.getInventory().setItem(8, orangewool);
-        }, 10);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.clearingsound(p);
-            p.getInventory().setItem(0, orangewool);
-            p.getInventory().setItem(1, yellowwool);
-            p.getInventory().setItem(2, redwool);
-            p.getInventory().setItem(3, orangewool);
-            p.getInventory().setItem(4, yellowwool);
-            p.getInventory().setItem(5, greenwool);
-            p.getInventory().setItem(6, bluewool);
-            p.getInventory().setItem(7, purplewool);
-            p.getInventory().setItem(8, redwool);
-        }, 20);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.cleardone(p);
-            Particlez.colorParticle(p);
-        }, 35L);
+        timeline.at(17L, Particlez::colorParticle);
+        finishOn(timeline, 17L);
+        timeline.start();
     }
 
-    //_______________________________________________________ ANIMATION 1
-    public static void animation1(CommandSender sender) {
-        final Player p = (Player) sender;
+    //_______________________________________________________ ANIMATION 2 (Rainbow)
+    public static void animation2(Player p) {
+        final ItemStack red = blank(Material.RED_WOOL);
+        final ItemStack orange = blank(Material.ORANGE_WOOL);
+        final ItemStack yellow = blank(Material.YELLOW_WOOL);
+        final ItemStack green = blank(Material.GREEN_WOOL);
+        final ItemStack blue = blank(Material.BLUE_WOOL);
+        final ItemStack purple = blank(Material.PURPLE_WOOL);
 
-        final ItemStack air = new ItemStack(Material.AIR);
-        ItemMeta airmeta = air.getItemMeta();
-        air.setItemMeta(airmeta);
-
-        final ItemStack glass = new ItemStack(Material.WHITE_STAINED_GLASS_PANE);
-        ItemMeta glassmeta = glass.getItemMeta();
-        Objects.requireNonNull(glassmeta).setDisplayName("§a§e");
-        glass.setItemMeta(glassmeta);
+        // Each frame is the previous one scrolled right by a slot.
+        final ItemStack[][] frames = {
+                {red, orange, yellow, green, blue, purple, red, orange, yellow},
+                {yellow, red, orange, yellow, green, blue, purple, red, orange},
+                {orange, yellow, red, orange, yellow, green, blue, purple, red}
+        };
 
         putTokenItem(p);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(1);
-            }
-        }, 0L);
+        final Timeline timeline = new Timeline(plugin, p);
+        for (int i = 0; i < frames.length; i++) {
+            final ItemStack[] frame = frames[i];
+            timeline.at(i * 10L, player -> {
+                plugin.clearingsound(player);
+                for (int slot = 0; slot < HOTBAR; slot++) {
+                    player.getInventory().setItem(slot, frame[slot]);
+                }
+            });
+        }
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(2);
-            }
-            plugin.clearingsound(p);
-        }, 1L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(3);
-            }
-        }, 2L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(4);
-            }
-        }, 3L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(4, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(5);
-            }
-            plugin.clearingsound(p);
-        }, 4L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(5, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(6);
-            }
-        }, 5L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(6, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(7);
-            }
-        }, 6L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(7, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(8);
-            }
-            plugin.clearingsound(p);
-        }, 7L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(8, glass);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(8);
-            }
-        }, 8L);
-
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(8, air);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(7);
-            }
-            plugin.clearingsound(p);
-        }, 9L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(7, air);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(6);
-            }
-        }, 10L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(6, air);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(5);
-            }
-        }, 11L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(5, air);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(4);
-            }
-        }, 12L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> p.getInventory().setItem(4, air), 13L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> p.getInventory().setItem(3, air), 14L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> p.getInventory().setItem(2, air), 15L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> p.getInventory().setItem(1, air), 16L);
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, air);
-            Particlez.colorParticle(p);
-            plugin.cleardone(p);
-        }, 17L);
+        timeline.at(35L, Particlez::colorParticle);
+        finishOn(timeline, 35L);
+        timeline.start();
     }
 
-    //_______________________________________________________ ANIMATION 4
-    static void animation4(CommandSender sender) {
-        final Player p = (Player) sender;
+    //_______________________________________________________ ANIMATION 3 (TNT)
+    public static void animation3(Player p) {
+        final ItemStack powder = blank(Material.GUNPOWDER);
+        final ItemStack tntblock = blank(Material.TNT);
+        final ItemStack cart = blank(Material.TNT_MINECART);
+        final ItemStack glass = blank(Material.ORANGE_STAINED_GLASS_PANE);
 
-        final ItemStack air = new ItemStack(Material.AIR);
-        ItemMeta airmeta = air.getItemMeta();
-        air.setItemMeta(airmeta);
+        putTokenItem(p);
+        p.getInventory().setItem(0, cart);
 
-        final ItemStack bg = new ItemStack(Material.BLUE_STAINED_GLASS_PANE);
-        ItemMeta bgm = bg.getItemMeta();
-        Objects.requireNonNull(bgm).setDisplayName("§a§e");
-        bg.setItemMeta(bgm);
+        final Timeline timeline = new Timeline(plugin, p);
 
-        final ItemStack cg = new ItemStack(Material.CYAN_STAINED_GLASS_PANE);
-        ItemMeta cgm = cg.getItemMeta();
-        Objects.requireNonNull(cgm).setDisplayName("§a§e");
-        cg.setItemMeta(cgm);
+        // The cart rolls along the hotbar leaving a gunpowder trail behind it.
+        timeline.at(4L, player -> {
+            player.getInventory().setItem(1, cart);
+            player.getInventory().setItem(0, powder);
+            plugin.tntmovesound(player);
+        });
+        timeline.at(8L, player -> {
+            player.getInventory().setItem(2, cart);
+            player.getInventory().setItem(1, powder);
+        });
+        timeline.at(12L, player -> {
+            player.getInventory().setItem(3, cart);
+            player.getInventory().setItem(2, powder);
+            player.getInventory().setItem(0, AIR);
+        });
+        timeline.at(16L, player -> {
+            player.getInventory().setItem(4, cart);
+            player.getInventory().setItem(3, powder);
+            player.getInventory().setItem(1, AIR);
+        });
+        timeline.at(20L, player -> player.getInventory().setItem(2, AIR));
+        timeline.at(25L, player -> {
+            player.getInventory().setItem(3, AIR);
+            player.getInventory().setItem(4, tntblock);
+            plugin.tntmovesoundstop(player);
+            plugin.tntplacesound(player);
+            Msgs.sendBar(player, plugin.getConfig().getString("features.clearing.progress-msg"));
+        });
 
-        final ItemStack lbg = new ItemStack(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
-        ItemMeta lbgm = lbg.getItemMeta();
-        Objects.requireNonNull(lbgm).setDisplayName("§a§e");
-        lbg.setItemMeta(lbgm);
+        // Then it detonates outwards from the middle.
+        for (int i = 0; i < 4; i++) {
+            final int left = 3 - i;
+            final int right = 5 + i;
+            final boolean first = i == 0;
+            timeline.at(35L + i, player -> {
+                player.getInventory().setItem(left, glass);
+                player.getInventory().setItem(right, glass);
+                if (first) {
+                    plugin.boomsound(player);
+                    Particlez.explosionParticle(player);
+                }
+            });
+        }
 
-        final ItemStack wb = new ItemStack(Material.WATER_BUCKET);
-        ItemMeta wbm = wb.getItemMeta();
-        Objects.requireNonNull(wbm).setDisplayName("§a§e");
-        wb.setItemMeta(wbm);
+        finishOn(timeline, 45L);
+        timeline.start();
+    }
 
-        final ItemStack b = new ItemStack(Material.BUCKET);
-        ItemMeta bm = b.getItemMeta();
-        Objects.requireNonNull(bm).setDisplayName("§a§e");
-        b.setItemMeta(bm);
+    //_______________________________________________________ ANIMATION 4 (Water)
+    public static void animation4(Player p) {
+        final ItemStack deep = blank(Material.BLUE_STAINED_GLASS_PANE);
+        final ItemStack mid = blank(Material.CYAN_STAINED_GLASS_PANE);
+        final ItemStack shallow = blank(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
+        final ItemStack fullBucket = blank(Material.WATER_BUCKET);
+        final ItemStack emptyBucket = blank(Material.BUCKET);
 
         putTokenItem(p);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(4, b);
-            if (moveslots) {
-                p.getInventory().setHeldItemSlot(4);
-            }
-            p.playSound(p.getLocation(), Sound.ITEM_ARMOR_EQUIP_GOLD, 5.0f, 0.1f);
-            p.playSound(p.getLocation(), Sound.ENTITY_CHICKEN_EGG, 5.0f, 0.1f);
-        }, 0L);
+        final Timeline timeline = new Timeline(plugin, p);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(4, wb);
-            p.playSound(p.getLocation(), Sound.ITEM_BUCKET_FILL, 5.0f, 1.4f);
-        }, 20L);
+        timeline.at(0L, player -> {
+            player.getInventory().setItem(4, emptyBucket);
+            hold(player, 4);
+            player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GOLD, 5.0f, 0.1f);
+            player.playSound(player.getLocation(), Sound.ENTITY_CHICKEN_EGG, 5.0f, 0.1f);
+        });
+        timeline.at(20L, player -> {
+            player.getInventory().setItem(4, fullBucket);
+            player.playSound(player.getLocation(), Sound.ITEM_BUCKET_FILL, 5.0f, 1.4f);
+        });
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, lbg);
-            p.getInventory().setItem(5, lbg);
-            plugin.waterAmb(p);
-        }, 24L);
+        // Water floods outwards from the middle, deepening as it goes.
+        flood(timeline, 24L, 2L, shallow, 24L, 30L);
+        flood(timeline, 32L, 2L, mid, 38L, -1L);
+        flood(timeline, 40L, 2L, deep, -1L, -1L);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, lbg);
-            p.getInventory().setItem(6, lbg);
-        }, 26L);
+        timeline.at(55L, player -> {
+            player.getInventory().setItem(4, emptyBucket);
+            player.playSound(player.getLocation(), Sound.BLOCK_WET_GRASS_PLACE, 5.0f, 0.4f);
+        });
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, lbg);
-            p.getInventory().setItem(7, lbg);
-        }, 28L);
+        // Then it drains back out the same way.
+        flood(timeline, 60L, 2L, mid, -1L, -1L);
+        flood(timeline, 70L, 2L, shallow, -1L, -1L);
+        flood(timeline, 77L, 1L, AIR, -1L, -1L);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, lbg);
-            p.getInventory().setItem(8, lbg);
-            plugin.waterAmb(p);
-        }, 30L);
+        timeline.at(40L, player -> Msgs.sendBar(player,
+                plugin.getConfig().getString("features.clearing.progress-msg")));
+        timeline.at(60L, player -> Msgs.sendBar(player,
+                plugin.getConfig().getString("features.clearing.progress-msg")));
+        timeline.at(85L, Particlez::waterParticle);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, cg);
-            p.getInventory().setItem(5, cg);
-        }, 32L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, cg);
-            p.getInventory().setItem(6, cg);
-        }, 34L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, cg);
-            p.getInventory().setItem(7, cg);
-        }, 36L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, cg);
-            p.getInventory().setItem(8, cg);
-            p.playSound(p.getLocation(), Sound.BLOCK_WATER_AMBIENT, 5.0F, 1.0F);
-        }, 38L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, bg);
-            p.getInventory().setItem(5, bg);
-            Msgs.sendBar(p, plugin.getConfig().getString("features.clearing.progress-msg"));
-        }, 40L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, bg);
-            p.getInventory().setItem(6, bg);
-        }, 42L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, bg);
-            p.getInventory().setItem(7, bg);
-        }, 44L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, bg);
-            p.getInventory().setItem(8, bg);
-        }, 46L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(4, b);
-            p.playSound(p.getLocation(), Sound.BLOCK_WET_GRASS_PLACE, 5.0f, 0.4f);
-        }, 55L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            Msgs.sendBar(p, plugin.getConfig().getString("features.clearing.progress-msg"));
-            p.getInventory().setItem(3, cg);
-            p.getInventory().setItem(5, cg);
-        }, 60L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, cg);
-            p.getInventory().setItem(6, cg);
-        }, 62L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, cg);
-            p.getInventory().setItem(7, cg);
-        }, 64L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, cg);
-            p.getInventory().setItem(7, cg);
-        }, 66L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, cg);
-            p.getInventory().setItem(8, cg);
-        }, 68L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, lbg);
-            p.getInventory().setItem(5, lbg);
-        }, 70L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, lbg);
-            p.getInventory().setItem(6, lbg);
-        }, 72L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, lbg);
-            p.getInventory().setItem(7, lbg);
-        }, 74L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, lbg);
-            p.getInventory().setItem(8, lbg);
-        }, 76L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, air);
-            p.getInventory().setItem(5, air);
-        }, 77L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, air);
-            p.getInventory().setItem(6, air);
-        }, 78L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, air);
-            p.getInventory().setItem(7, air);
-        }, 79L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, air);
-            p.getInventory().setItem(8, air);
-        }, 80L);
-
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            Particlez.waterParticle(p);
-            plugin.cleardone(p);
-        }, 85L);
+        finishOn(timeline, 85L);
+        timeline.start();
     }
 
-    public static void animation3(CommandSender sender) {
-        final Player p = (Player) sender;
+    /**
+     * Fills the hotbar outwards from the middle pair, one step every
+     * {@code step} ticks, optionally playing the water ambience on two of them.
+     */
+    private static void flood(Timeline timeline, long start, long step, ItemStack item,
+                              long ambientA, long ambientB) {
+        for (int i = 0; i < 4; i++) {
+            final int left = 3 - i;
+            final int right = 5 + i;
+            final long tick = start + (i * step);
+            final boolean ambient = tick == ambientA || tick == ambientB;
+            timeline.at(tick, player -> {
+                player.getInventory().setItem(left, item);
+                player.getInventory().setItem(right, item);
+                if (ambient) {
+                    plugin.waterAmb(player);
+                }
+            });
+        }
+    }
 
-        final ItemStack gsg = new ItemStack(Material.GUNPOWDER);
-        ItemMeta gsgm = gsg.getItemMeta();
-        Objects.requireNonNull(gsgm).setDisplayName("§a§e");
-        gsg.setItemMeta(gsgm);
-
-        final ItemStack tntblock = new ItemStack(Material.TNT);
-        ItemMeta tntblockm = tntblock.getItemMeta();
-        Objects.requireNonNull(tntblockm).setDisplayName("§a§e");
-        tntblock.setItemMeta(tntblockm);
-
-        final ItemStack air = new ItemStack(Material.AIR);
-        ItemMeta airmeta = air.getItemMeta();
-        air.setItemMeta(airmeta);
-
-        final ItemStack tnt = new ItemStack(Material.TNT_MINECART);
-        ItemMeta tntm = tnt.getItemMeta();
-        Objects.requireNonNull(tntm).setDisplayName("§a§e");
-        tnt.setItemMeta(tntm);
-
-        final ItemStack glass = new ItemStack(Material.ORANGE_STAINED_GLASS_PANE);
-        ItemMeta glassm = glass.getItemMeta();
-        Objects.requireNonNull(glassm).setDisplayName("§a§e");
-        glass.setItemMeta(glassm);
+    //_______________________________________________________ ANIMATION 5 (Fireball)
+    public static void animation5(Player p) {
+        final ItemStack dispenser = blank(Material.DISPENSER);
+        final ItemStack charge = blank(Material.FIRE_CHARGE);
 
         putTokenItem(p);
 
-        p.getInventory().setItem(0, tnt);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, tnt);
-            p.getInventory().setItem(0, gsg);
-            plugin.tntmovesound(p);
-        }, 4L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, tnt);
-            p.getInventory().setItem(1, gsg);
-        }, 8L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, tnt);
-            p.getInventory().setItem(2, gsg);
-            p.getInventory().setItem(0, air);
-        }, 12L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(4, tnt);
-            p.getInventory().setItem(3, gsg);
-            p.getInventory().setItem(1, air);
-        }, 16L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> p.getInventory().setItem(2, air), 20L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, air);
-            p.getInventory().setItem(4, tntblock);
-            plugin.tntmovesoundstop(p);
-            plugin.tntplacesound(p);
-            Msgs.sendBar(p, plugin.getConfig().getString("features.clearing.progress-msg"));
-        }, 25L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, glass);
-            p.getInventory().setItem(5, glass);
-            plugin.boomsound(p);
-            Particlez.explosionParticle(p);
-        }, 35L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, glass);
-            p.getInventory().setItem(6, glass);
-        }, 36L);
-
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, glass);
-            p.getInventory().setItem(7, glass);
-        }, 37L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(0, glass);
-            p.getInventory().setItem(8, glass);
-        }, 38L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> plugin.cleardone(p), 45L);
-    }
-
-    public static void animation5(CommandSender sender) {
-        final Player p = (Player) sender;
-
-        final ItemStack dblock = new ItemStack(Material.DISPENSER);
-        ItemMeta dblockm = dblock.getItemMeta();
-        Objects.requireNonNull(dblockm).setDisplayName("§a§e");
-        dblock.setItemMeta(dblockm);
-
-        final ItemStack fc = new ItemStack(Material.FIRE_CHARGE);
-        ItemMeta fcm = dblock.getItemMeta();
-        fcm.setDisplayName("§a§e");
-        fc.setItemMeta(fcm);
-
-        final ItemStack air = new ItemStack(Material.AIR);
-        ItemMeta airmeta = air.getItemMeta();
-        air.setItemMeta(airmeta);
-
-        putTokenItem(p);
-
-        p.getInventory().setItem(0, dblock);
+        p.getInventory().setItem(0, dispenser);
         plugin.despsound(p);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            plugin.fireballshootsound(p);
-            p.getInventory().setItem(1, fc);
-            Particlez.fireballParticle(p);
-        }, 15L);
+        final Timeline timeline = new Timeline(plugin, p);
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(1, air);
-            p.getInventory().setItem(2, fc);
-            Particlez.fireballParticle(p);
-        }, 17L);
+        // A single charge flies from the dispenser out along the hotbar.
+        for (int slot = 1; slot < HOTBAR; slot++) {
+            final int target = slot;
+            final long tick = 15L + ((slot - 1) * 2L);
+            timeline.at(tick, player -> {
+                if (target == 1) {
+                    plugin.fireballshootsound(player);
+                } else {
+                    player.getInventory().setItem(target - 1, AIR);
+                }
+                player.getInventory().setItem(target, charge);
+                Particlez.fireballParticle(player);
+                if (target == 6) {
+                    Msgs.sendBar(player, plugin.getConfig().getString("features.clearing.progress-msg"));
+                }
+            });
+        }
 
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(2, air);
-            p.getInventory().setItem(3, fc);
-            Particlez.fireballParticle(p);
-        }, 19L);
-
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(3, air);
-            p.getInventory().setItem(4, fc);
-            Particlez.fireballParticle(p);
-        }, 21L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(4, air);
-            p.getInventory().setItem(5, fc);
-            Particlez.fireballParticle(p);
-        }, 23L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(5, air);
-            p.getInventory().setItem(6, fc);
-            Particlez.fireballParticle(p);
-            Msgs.sendBar(p, plugin.getConfig().getString("features.clearing.progress-msg"));
-        }, 25L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(6, air);
-            p.getInventory().setItem(7, fc);
-            Particlez.fireballParticle(p);
-        }, 27L);
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> {
-            p.getInventory().setItem(7, air);
-            p.getInventory().setItem(8, fc);
-            Particlez.fireballParticle(p);
-        }, 29L);
-
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> p.getInventory().setItem(8, air), 31L);
-
-
-        Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(plugin, () -> plugin.cleardone(p), 36L);
+        timeline.at(31L, player -> player.getInventory().setItem(8, AIR));
+        finishOn(timeline, 36L);
+        timeline.start();
     }
 
+    private static void hold(Player p, int slot) {
+        if (Settings.slotSwitching) {
+            p.getInventory().setHeldItemSlot(slot);
+        }
+    }
+
+    /**
+     * Adds the wipe-and-announce step four ticks after the last visual frame,
+     * matching the delay the old cleardone() scheduled for itself.
+     */
+    private static void finishOn(Timeline timeline, long lastFrame) {
+        timeline.at(lastFrame + 4L, plugin::finishClear);
+    }
 }

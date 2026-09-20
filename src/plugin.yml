@@ -1,5 +1,5 @@
 name: AnimatedInventory
-version: 8.0.0
+version: ${project.version}
 author: zach_attack
 website: https://zachduda.com/animatedinventory
 main: com.zachduda.animatedinventory.Main

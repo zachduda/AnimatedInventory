@@ -1,4 +1,4 @@
-[![Build Status](https://ci.zachduda.com/job/ChatFeelings/badge/icon)](https://ci.zachduda.com/job/AnimatedInventory/)
+[![Build Status](https://ci.zachduda.com/job/AnimatedInventory/badge/icon)](https://ci.zachduda.com/job/AnimatedInventory/)
 
 
 # AnimatedInventory

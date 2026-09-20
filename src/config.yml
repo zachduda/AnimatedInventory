@@ -49,6 +49,7 @@ features:
     enable-slot-skipping: false
     skip-slots:
     - 35
+    # Also covers the off-hand slot: a shield is gear in the same sense armor is.
     clear-armor: true
     inv-backup:
       enabled: false

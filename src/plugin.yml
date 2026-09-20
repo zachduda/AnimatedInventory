@@ -20,6 +20,7 @@ permissions:
        animatedinv.clear.undo.others: true
        animatedinv.fortune: true
        animatedinv.fortune.others: true
+       animatedinv.purge: true
        animatedinv.admin: true
    animatedinventory.*:
      description: Allows all AnimatedInv commands & admin commands.
@@ -31,6 +32,7 @@ permissions:
        animatedinv.clear.undo.others: true
        animatedinv.fortune: true
        animatedinv.fortune.others: true
+       animatedinv.purge: true
        animatedinv.admin: true
    animatedinv.help:
      description: Shows the AnimatedInv help page.

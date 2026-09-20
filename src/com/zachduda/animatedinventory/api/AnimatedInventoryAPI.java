@@ -52,11 +52,11 @@ public final class AnimatedInventoryAPI {
 		if (dochecks && !abletoFortune(p, false)) {
 			return;
 		}
-		Cooldowns.activefortune.put(p.getUniqueId(), p.getName());
+		Cooldowns.markFortune(p);
 		try {
 			MC1_20.fortune(p);
 		} catch (Exception e) {
-			Cooldowns.activefortune.remove(p.getUniqueId());
+			plugin.abortFortune(p);
 			throw e;
 		}
 	}

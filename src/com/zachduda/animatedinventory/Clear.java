@@ -206,7 +206,7 @@ public class Clear {
 			return;
 		}
 
-		Cooldowns.active.put(p.getUniqueId(), p.getName());
+		Cooldowns.markClearing(p);
 		plugin.clearMessage(p);
 		backupInv(p);
 
@@ -226,7 +226,7 @@ public class Clear {
 				default -> MC1_20.animation5(p);
 			}
 		} catch (Exception e) {
-			Cooldowns.active.remove(p.getUniqueId());
+			Cooldowns.unmarkClearing(p.getUniqueId());
 			Timeline.stop(p);
 			plugin.errorMsg(p, pick, e);
 		}

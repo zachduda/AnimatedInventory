@@ -13,11 +13,16 @@ import org.bukkit.inventory.ItemStack;
 /**
  * Per-player state for anything currently in progress.
  *
- * These maps are keyed by UUID rather than by Player. A Bukkit Player is a live
+ * The maps are keyed by UUID rather than by Player. A Bukkit Player is a live
  * handle onto a connection, an entity and a world, so holding one as a map key
  * pins all of that in memory for as long as the entry survives - and because a
  * reconnecting player gets a brand new Player instance, any entry that outlived
  * a logout could never be looked up again, only leaked.
+ *
+ * They are also private now. They used to be public and were read and mutated
+ * from every other class, which is how a player could end up marked as clearing
+ * with no animation running, or marked twice by two different call paths. Go
+ * through the methods below; AnimatedInventoryAPI is the supported surface.
  */
 public class Cooldowns implements Listener {
 
@@ -26,12 +31,20 @@ public class Cooldowns implements Listener {
 	/** How long after taking damage a fortune stays blocked. */
 	private static final long HURT_BLOCK_SECONDS = 7L;
 
-	public static Map < UUID, String > cooldown = new HashMap<>();
-	public static Map < UUID, String > filecooldown = new HashMap<>();
-	public static Map < UUID, String > active = new HashMap<>();
-	public static Map < UUID, String > activefortune = new HashMap<>();
-	public static Map < UUID, ItemStack[] > inventories = new HashMap<>();
-	public static Map < UUID, Long > isBeinghurt = new HashMap<>();
+	private static final Map < UUID, String > cooldown = new HashMap<>();
+	private static final Map < UUID, String > filecooldown = new HashMap<>();
+	private static final Map < UUID, String > active = new HashMap<>();
+	private static final Map < UUID, String > activefortune = new HashMap<>();
+	private static final Map < UUID, ItemStack[] > inventories = new HashMap<>();
+	private static final Map < UUID, Long > isBeinghurt = new HashMap<>();
+
+	/**
+	 * The result a running fortune already rolled, held until the fortune ends.
+	 *
+	 * PlayerFortuneEndEvent needs it on whichever path the fortune finishes:
+	 * normally, or cut short by a quit, a world change or a reload.
+	 */
+	private static final Map < UUID, Boolean > fortuneResults = new HashMap<>();
 
 	public static boolean isClearing(final Player p) {
 		return active.containsKey(p.getUniqueId());
@@ -51,6 +64,53 @@ public class Cooldowns implements Listener {
 		return cooldown.containsKey(p.getUniqueId());
 	}
 
+	public static boolean onFileCooldown(final Player p) {
+		return filecooldown.containsKey(p.getUniqueId());
+	}
+
+	static void markClearing(final Player p) {
+		active.put(p.getUniqueId(), p.getName());
+	}
+
+	/** Clears the clearing flag, reporting whether it had been set. */
+	static boolean unmarkClearing(final UUID id) {
+		return active.remove(id) != null;
+	}
+
+	public static void markFortune(final Player p) {
+		activefortune.put(p.getUniqueId(), p.getName());
+	}
+
+	/** Clears the fortune flag, reporting whether it had been set. */
+	static boolean unmarkFortune(final UUID id) {
+		return activefortune.remove(id) != null;
+	}
+
+	static void setFortuneResult(final Player p, final boolean lucky) {
+		fortuneResults.put(p.getUniqueId(), lucky);
+	}
+
+	/** Takes the pending fortune result, or null if there is none left to fire. */
+	static Boolean takeFortuneResult(final Player p) {
+		return fortuneResults.remove(p.getUniqueId());
+	}
+
+	static void stashInventory(final Player p, final ItemStack[] contents) {
+		inventories.put(p.getUniqueId(), contents);
+	}
+
+	static ItemStack[] peekInventory(final Player p) {
+		return inventories.get(p.getUniqueId());
+	}
+
+	static void dropInventory(final Player p) {
+		inventories.remove(p.getUniqueId());
+	}
+
+	static void hurt(final Player p) {
+		isBeinghurt.put(p.getUniqueId(), System.currentTimeMillis());
+	}
+
 	static void removeAll(final Player p) {
 		removeAll(p.getUniqueId());
 	}
@@ -63,6 +123,7 @@ public class Cooldowns implements Listener {
 		inventories.remove(id);
 		filecooldown.remove(id);
 		isBeinghurt.remove(id);
+		fortuneResults.remove(id);
 		if (Settings.debug) {
 			plugin.getLogger().info("[Debug] Called removeAll() event under Cooldowns.");
 		}

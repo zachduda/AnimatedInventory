@@ -50,7 +50,15 @@ public class MC1_20 implements Listener {
     }
 
     static void putTokenItem(Player p) {
-        p.getInventory().setItem(22, Settings.token);
+        // Only claim the slot when it is already empty. The marker exists so that
+        // a crash or a hard reload can still be spotted afterwards, which is not
+        // worth overwriting an item for - Cooldowns covers every path where the
+        // plugin gets to shut the animation down itself, and Clear.backupInv has
+        // already run by this point either way.
+        final ItemStack current = p.getInventory().getItem(Settings.TOKEN_SLOT);
+        if (current == null || current.getType() == Material.AIR) {
+            p.getInventory().setItem(Settings.TOKEN_SLOT, Settings.token);
+        }
     }
 
     static boolean hasTokenItem(Player p) {
@@ -78,7 +86,7 @@ public class MC1_20 implements Listener {
                     online.getInventory().clear();
                     plugin.getLogger().info("Attempted to restore " + online.getName()
                             + "'s inventory. (They were in the middle of a fortune)");
-                    Cooldowns.activefortune.remove(online.getUniqueId());
+                    Cooldowns.unmarkFortune(online.getUniqueId());
                     Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we have ended your fortune.");
                     plugin.bass(online);
                     try {
@@ -88,13 +96,14 @@ public class MC1_20 implements Listener {
                                 + "'s inventory on plugin disable!");
                     }
                     plugin.deleteInv(online);
+                    fireFortuneEnd(online);
                 }
 
                 if (Cooldowns.isClearing(online) || hasTokenItem(online)) {
                     online.getInventory().clear();
                     Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we force cleared your inventory.");
                     plugin.bass(online);
-                    Cooldowns.active.remove(online.getUniqueId());
+                    Cooldowns.unmarkClearing(online.getUniqueId());
                     plugin.getLogger().info("Attempted to clear " + online.getName()
                             + "'s inventory. (They were in the middle of clearing.)");
                 }
@@ -103,6 +112,28 @@ public class MC1_20 implements Listener {
             plugin.getLogger().warning("Couldn't search player inventories on shutdown. Did you change the .jar?");
             plugin.debugError(err);
         }
+    }
+
+    /**
+     * Fires PlayerFortuneEndEvent once, if this player still has a result pending.
+     *
+     * It used to be fired the instant the fortune started - ten seconds before the
+     * player saw the result, and before loadInv() put their real inventory back,
+     * so anything a listener handed them was wiped moments later. It now fires
+     * once the inventory is restored, on whichever path the fortune ends: normally,
+     * or cut short by a quit, a world change, a reload or a frame error.
+     */
+    static void fireFortuneEnd(Player p) {
+        final Boolean lucky = Cooldowns.takeFortuneResult(p);
+        if (lucky == null) {
+            return;
+        }
+
+        if (Settings.notifyConsole) {
+            plugin.getLogger().info(p.getName() + " got '" + (lucky ? "YES" : "NO") + "' on their fortune.");
+        }
+
+        Bukkit.getPluginManager().callEvent(new PlayerFortuneEndEvent(p, lucky));
     }
 
     public static void fortune(final Player p) {
@@ -155,12 +186,7 @@ public class MC1_20 implements Listener {
             });
         }
 
-        final PlayerFortuneEndEvent pfee = new PlayerFortuneEndEvent(p, lucky);
-        Bukkit.getPluginManager().callEvent(pfee);
-
-        if (Settings.notifyConsole) {
-            plugin.getLogger().info(p.getName() + " got '" + (lucky ? "YES" : "NO") + "' on their fortune.");
-        }
+        Cooldowns.setFortuneResult(p, lucky);
 
         final long finishTick;
         if (lucky) {
@@ -206,6 +232,7 @@ public class MC1_20 implements Listener {
             }
             plugin.deleteInv(player);
             Cooldowns.removeFortune(player);
+            fireFortuneEnd(player);
             Msgs.sendBar(player, doneMsg);
         });
 

@@ -1,6 +1,8 @@
 package com.zachduda.animatedinventory;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -44,9 +46,6 @@ public class Main extends JavaPlugin implements Listener {
 
     /** Compiled once; getMCVersion() used to rebuild this on every call. */
     private static final Pattern VERSION_PATTERN = Pattern.compile("^(\\d+)\\.(\\d+)(?:\\.(\\d+))?");
-
-    /** The slot the clear animation parks its marker item in. */
-    private static final int TOKEN_SLOT = 22;
 
     /** Slots a player can actually carry: the 36 main inventory slots. */
     private static final int MAIN_SLOTS = 36;
@@ -106,6 +105,16 @@ public class Main extends JavaPlugin implements Listener {
 
     public boolean isFortuneDisabledIn(String world) {
         return Settings.disabledFortuneWorlds.contains(world);
+    }
+
+    /** Replaces the old public disabledclearworld list. */
+    public Set<String> getDisabledClearWorlds() {
+        return Collections.unmodifiableSet(Settings.disabledClearWorlds);
+    }
+
+    /** Replaces the old public disabledfortuneworld list. */
+    public Set<String> getDisabledFortuneWorlds() {
+        return Collections.unmodifiableSet(Settings.disabledFortuneWorlds);
     }
 
     private boolean checkSupported() {
@@ -290,8 +299,8 @@ public class Main extends JavaPlugin implements Listener {
                 getLogger().warning("WARNING: You're choosing to skip a slot between 1-8 (Hotbar)."
                         + " These WONT be skipped because they are part of the animations.");
             }
-            if (skipslot.contains(TOKEN_SLOT)) {
-                getLogger().warning("WARNING: Slot " + TOKEN_SLOT
+            if (skipslot.contains(Settings.TOKEN_SLOT)) {
+                getLogger().warning("WARNING: Slot " + Settings.TOKEN_SLOT
                         + ". This is where the AnimatedInventory token is, and WONT be skipped.");
             }
         }
@@ -315,12 +324,17 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     /** True when the sender may not run this command; messages them if so. */
-    private boolean denied(CommandSender sender, String permission) {
+    private boolean denied(CommandSender sender, String... permissions) {
         if (!(sender instanceof Player)) {
             return false;
         }
-        if (sender.hasPermission(permission) || sender.isOp()) {
+        if (sender.isOp()) {
             return false;
+        }
+        for (String permission : permissions) {
+            if (sender.hasPermission(permission)) {
+                return false;
+            }
         }
         noPermission(sender);
         return true;
@@ -332,7 +346,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @SuppressWarnings("UnstableApiUsage")
     void saveInv(Player p) {
-        Cooldowns.inventories.put(p.getUniqueId(), p.getInventory().getContents());
+        Cooldowns.stashInventory(p, p.getInventory().getContents());
         p.updateInventory(); // Spigot deprecated. Not always needed, but is a good failsafe.
         if (Settings.debug) {
             getLogger().info("[Debug] Saving " + p.getName() + "'s inventory in system.");
@@ -341,7 +355,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @SuppressWarnings("UnstableApiUsage")
     void loadInv(Player p) {
-        final ItemStack[] saved = Cooldowns.inventories.get(p.getUniqueId());
+        final ItemStack[] saved = Cooldowns.peekInventory(p);
         if (saved == null) {
             // Nothing stored means it was already handed back, e.g. on quit.
             return;
@@ -355,7 +369,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     void deleteInv(Player p) {
-        Cooldowns.inventories.remove(p.getUniqueId());
+        Cooldowns.dropInventory(p);
         if (Settings.debug) {
             getLogger().info("[Debug] Removing system data on " + p.getName() + "'s inventory.");
         }
@@ -376,9 +390,25 @@ public class Main extends JavaPlugin implements Listener {
 
     /** Called when an animation frame throws; the timeline is already stopped. */
     void frameError(Player p, Exception e) {
-        Cooldowns.active.remove(p.getUniqueId());
-        Cooldowns.activefortune.remove(p.getUniqueId());
+        Cooldowns.unmarkClearing(p.getUniqueId());
+        abortFortune(p);
         errorMsg(p, 0, e);
+    }
+
+    /**
+     * Ends a fortune that is not going to finish on its own.
+     *
+     * The real inventory is held in memory for the length of the animation, so
+     * without this the player is left holding the spinner and their items stay
+     * stranded in the map.
+     */
+    public void abortFortune(Player p) {
+        if (!Cooldowns.unmarkFortune(p.getUniqueId())) {
+            return;
+        }
+        loadInv(p);
+        deleteInv(p);
+        MC1_20.fireFortuneEnd(p);
     }
 
     /**
@@ -393,16 +423,20 @@ public class Main extends JavaPlugin implements Listener {
         doneding(p);
         burp(p);
 
+        // Slots 0-8 carry the animation and TOKEN_SLOT the marker, so Settings
+        // .isSkipped() forces those clear whatever skip-slots asks for. The
+        // off-hand follows clear-armor: a shield is gear in the same sense armor
+        // is, and whether it survived a clear used to depend on slot skipping - a
+        // setting that has nothing to say about the off-hand.
         if (Settings.slotSkipping) {
             for (int i = 0; i < MAIN_SLOTS; i++) {
                 if (!Settings.isSkipped(i)) {
                     p.getInventory().setItem(i, null);
                 }
             }
-            p.getInventory().setItemInOffHand(null);
-            p.getInventory().setItemInMainHand(null);
 
             if (Settings.clearArmor) {
+                p.getInventory().setItemInOffHand(null);
                 p.getInventory().setHelmet(null);
                 p.getInventory().setChestplate(null);
                 p.getInventory().setLeggings(null);
@@ -581,10 +615,7 @@ public class Main extends JavaPlugin implements Listener {
             player.getInventory().clear();
         }
 
-        if (Cooldowns.isFortune(player)) {
-            loadInv(player);
-            deleteInv(player);
-        }
+        abortFortune(player);
 
         Cooldowns.removeAll(player);
     }
@@ -643,10 +674,12 @@ public class Main extends JavaPlugin implements Listener {
             }
 
             case "purge" -> {
-                if (denied(sender, "animatedinv.admin")) {
+                // plugin.yml declares animatedinv.purge, but only admin was ever
+                // checked, so granting the declared node did nothing.
+                if (denied(sender, "animatedinv.purge", "animatedinv.admin")) {
                     return true;
                 }
-                if (sender instanceof Player p && Cooldowns.filecooldown.containsKey(p.getUniqueId())) {
+                if (sender instanceof Player p && Cooldowns.onFileCooldown(p)) {
                     Msgs.send(sender, backupWaitMsg());
                     bass(p);
                     return true;
@@ -669,6 +702,7 @@ public class Main extends JavaPlugin implements Listener {
                     return true;
                 }
                 pop(p);
+                abortFortune(p);
                 Cooldowns.removeAll(p);
                 Msgs.send(sender, "&6&lGlitch Fixed. &fWe have tried to fix your sticky situation.");
             }
@@ -840,7 +874,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        if (Cooldowns.filecooldown.containsKey(p.getUniqueId())) {
+        if (Cooldowns.onFileCooldown(p)) {
             Msgs.send(sender, backupWaitMsg());
             bass(p);
             return;
@@ -915,14 +949,14 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        Cooldowns.activefortune.put(p.getUniqueId(), p.getName());
+        Cooldowns.markFortune(p);
         if (Settings.debug) {
             getLogger().info("[Debug] Self induced fortune: " + p.getName());
         }
         try {
             MC1_20.fortune(p);
         } catch (Exception e) {
-            Cooldowns.activefortune.remove(p.getUniqueId());
+            abortFortune(p);
             errorMsg(p, 10, e);
         }
     }
@@ -1102,11 +1136,11 @@ public class Main extends JavaPlugin implements Listener {
 
         // Mark them busy before the animation starts, so anything the first frame
         // triggers already sees the fortune as running.
-        Cooldowns.activefortune.put(target.getUniqueId(), target.getName());
+        Cooldowns.markFortune(target);
         try {
             MC1_20.fortune(target);
         } catch (Exception e) {
-            Cooldowns.activefortune.remove(target.getUniqueId());
+            abortFortune(target);
             errorMsg(target, 10, e);
         }
     }
@@ -1117,7 +1151,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
         if (e.getEntity() instanceof Player player) {
-            Cooldowns.isBeinghurt.put(player.getUniqueId(), System.currentTimeMillis());
+            Cooldowns.hurt(player);
         }
     }
 
@@ -1147,7 +1181,7 @@ public class Main extends JavaPlugin implements Listener {
         // Only players the plugin is actually driving can be left in a glitched
         // state. This used to build three item stacks and scan the inventory
         // twice for every world change by every player on the server.
-        if (!Cooldowns.active.containsKey(id) && !Cooldowns.activefortune.containsKey(id)) {
+        if (!Cooldowns.isBusy(p)) {
             return;
         }
 
@@ -1158,16 +1192,13 @@ public class Main extends JavaPlugin implements Listener {
 
             Timeline.stop(id);
 
-            if (Cooldowns.active.containsKey(id) || MC1_20.hasTokenItem(p)) {
+            if (Cooldowns.isClearing(p) || MC1_20.hasTokenItem(p)) {
                 p.getInventory().clear();
-                Cooldowns.active.remove(id);
+                Cooldowns.unmarkClearing(id);
             }
 
-            if (Cooldowns.activefortune.containsKey(id)) {
-                p.getInventory().clear();
-                loadInv(p);
-                deleteInv(p);
-                Cooldowns.activefortune.remove(id);
+            if (Cooldowns.isFortune(p)) {
+                abortFortune(p);
                 getLogger().info(p.getName()
                         + "'s fortune is glitched because they switched inventories. Restoring their items.");
             }

@@ -64,7 +64,10 @@ final class Settings {
     static Set<String> disabledClearWorlds = Collections.emptySet();
     static Set<String> disabledFortuneWorlds = Collections.emptySet();
 
-    /** Prototype of the marker item parked in slot 22 while a clear runs. */
+    /** The slot the clear animation parks its marker item in. */
+    static final int TOKEN_SLOT = 22;
+
+    /** Prototype of the marker item parked in TOKEN_SLOT while a clear runs. */
     static ItemStack token;
 
     private Settings() {
@@ -134,6 +137,6 @@ final class Settings {
 
     /** Slots the clear animation must never skip: the hotbar and the token slot. */
     static boolean isSkipped(int slot) {
-        return slotSkipping && slot > 8 && slot != 22 && skipSlots.contains(slot);
+        return slotSkipping && slot > 8 && slot != TOKEN_SLOT && skipSlots.contains(slot);
     }
 }

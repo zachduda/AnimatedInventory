@@ -61,6 +61,14 @@
                                 <exclude>META-INF/MANIFEST.MF</exclude>
                             </excludes>
                         </filter>
+                        <!-- minimizeJar prunes by static reachability, which is a
+                             poor fit for bStats: keep the whole artifact. -->
+                        <filter>
+                            <artifact>org.bstats:*</artifact>
+                            <includes>
+                                <include>**</include>
+                            </includes>
+                        </filter>
                     </filters>
                     <relocations>
                         <relocation>

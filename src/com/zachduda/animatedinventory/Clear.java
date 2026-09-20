@@ -3,7 +3,9 @@ package com.zachduda.animatedinventory;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -14,234 +16,228 @@ import org.bukkit.inventory.ItemStack;
 import com.zachduda.animatedinventory.api.PlayerClearInventoryEvent;
 
 public class Clear {
-	private static Main plugin = Main.getPlugin(Main.class);
+	private static final Main plugin = Main.getPlugin(Main.class);
+
+	/** Why an /ai undoclear did or did not put an inventory back. */
+	enum UndoResult {
+		RESTORED, NO_FILE, ALREADY_USED, DISABLED, ERROR
+	}
+
+	/** The outcome of an undo, plus how old the backup was. */
+	record UndoOutcome(UndoResult result, long secondsAgo) {
+	}
+
+	private static File cacheDir() {
+		return new File(plugin.getDataFolder(), "Cache");
+	}
+
+	private static File cacheFile(UUID id) {
+		return new File(cacheDir(), id + ".yml");
+	}
 
 	static void purgeCache() {
+		if (!Settings.backupEnabled) {
+			if (Settings.debug) {
+				plugin.getLogger().info("[Debug] Purge STOPPED. (It's disabled in the config)");
+			}
+			return;
+		}
+
+		// Snapshot on the calling thread so the async task never touches Settings.
+		final boolean debug = Settings.debug;
+		final int purgeSec = Settings.backupEraseAfter;
+
 		Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-			boolean debug = plugin.getConfig().getBoolean("options.debug");
 			if (debug) {
 				plugin.getLogger().info("[Debug] Attempting to start purgeCache().");
 			}
 
-			if (!plugin.getConfig().getBoolean("features.clearing.inv-backup.enabled")) {
+			// listFiles() is null when the folder has never been created, which is
+			// the normal state on a fresh install. Iterating it threw an NPE on
+			// every startup that had backups switched on.
+			final File[] files = cacheDir().listFiles((dir, name) -> name.endsWith(".yml"));
+			if (files == null || files.length == 0) {
 				if (debug) {
-					plugin.getLogger().info("[Debug] Purge STOPPED. (It's disabled in the config)");
+					plugin.getLogger().info("[Debug] No cache folder or no cache files to purge.");
 				}
 				return;
 			}
 
-			if (debug) {
-				plugin.getLogger().info("[Debug] Purge set to true in the config... Continuing...");
-			}
-
-			int purgeSec = plugin.getConfig().getInt("features.clearing.inv-backup.erase-after");
-			File cache = new File(plugin.getDataFolder(), File.separator + "Cache");
-
-			for (File cachefile: cache.listFiles()) {
-
-				File f = new File(cachefile.getPath());
-				FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
-
-				long secondsAgo = Math.abs(((setcache.getLong("Last-Backup")) / 1000) - (System.currentTimeMillis() / 1000));
-
-				String playername = setcache.getString("Name");
+			for (File f : files) {
+				final FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
+				final long secondsAgo = ageSeconds(setcache);
+				final String playername = setcache.getString("Name");
 
 				if (debug) {
 					plugin.getLogger().info("[Debug] File for " + playername + " is " + secondsAgo + " seconds old.");
 				}
 
 				if (secondsAgo > purgeSec) {
-					f.delete();
-					if (debug) {
-						plugin.getLogger().info("[Debug] Deleted " + playername + "'s cache file because it's " + secondsAgo + "s old. (Purge if past " + purgeSec + "s" + ")");
+					if (!f.delete()) {
+						plugin.getLogger().warning("Couldn't delete the old cache file " + f.getName());
+					} else if (debug) {
+						plugin.getLogger().info("[Debug] Deleted " + playername + "'s cache file because it's "
+								+ secondsAgo + "s old. (Purge if past " + purgeSec + "s)");
 					}
-				} else {
-					if (debug) {
-						plugin.getLogger().info("[Debug] Kept " + playername + "'s cache file. Life Left: " + (purgeSec - secondsAgo) + " seconds");
-					}
+				} else if (debug) {
+					plugin.getLogger().info("[Debug] Kept " + playername + "'s cache file. Life Left: "
+							+ (purgeSec - secondsAgo) + " seconds");
 				}
 			}
 		});
 	}
 
+	private static long ageSeconds(FileConfiguration setcache) {
+		return TimeUnit.MILLISECONDS.toSeconds(
+				Math.abs(System.currentTimeMillis() - setcache.getLong("Last-Backup")));
+	}
+
+	/**
+	 * Puts a backed-up inventory back.
+	 *
+	 * The caller used to restore, then separately re-read the file to decide what
+	 * to tell the player and to stamp the use count. That meant a failed restore
+	 * still burned the player's one-time-use backup and still reported success.
+	 * Everything now happens here, and the use is only stamped once the items are
+	 * actually back in the inventory.
+	 */
 	@SuppressWarnings("unchecked")
-	static void undoClear(Player p) {
-		if (!plugin.getConfig().getBoolean("features.clearing.inv-backup.enabled")) {
-			return;
+	static UndoOutcome undoClear(Player p) {
+		if (!Settings.backupEnabled) {
+			return new UndoOutcome(UndoResult.DISABLED, 0L);
 		}
 
-		File cache = new File(plugin.getDataFolder(), File.separator + "Cache");
-		File f = new File(cache, File.separator + "" + p.getUniqueId().toString() + ".yml");
-		FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
-
+		final File f = cacheFile(p.getUniqueId());
 		if (!f.exists()) {
 			plugin.getLogger().info("Request made for " + p.getName() + "'s inventory backup, but a file was not found.");
-			return;
+			return new UndoOutcome(UndoResult.NO_FILE, 0L);
 		}
-		final int uses = setcache.getInt("Uses", 0);
-		if (uses > 0 && plugin.getConfig().getBoolean("features.clearing.inv-backup.one-time-use")) {
-			return;
-		}
-		Cooldowns.startFileCooldown(p);
-		ItemStack[] backupinv = ((List < ItemStack > ) setcache.get("Inventory")).toArray(new ItemStack[0]);
 
-		p.getInventory().clear();
-		p.getInventory().setContents(backupinv);
-		p.updateInventory();
+		final FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
+		final long secondsAgo = ageSeconds(setcache);
+
+		if (setcache.getInt("Uses", 0) > 0 && Settings.backupOneTimeUse) {
+			return new UndoOutcome(UndoResult.ALREADY_USED, secondsAgo);
+		}
+
+		final Object stored = setcache.get("Inventory");
+		if (!(stored instanceof List)) {
+			// A backup file can exist with no contents if an earlier save failed
+			// partway. Reading it blind used to throw straight out of the command.
+			plugin.getLogger().warning(p.getName() + "'s backup file has no inventory in it.");
+			return new UndoOutcome(UndoResult.ERROR, secondsAgo);
+		}
+
+		final ItemStack[] backupinv = ((List < ItemStack > ) stored).toArray(new ItemStack[0]);
+
+		try {
+			p.getInventory().clear();
+			p.getInventory().setContents(backupinv);
+			p.updateInventory();
+
+			setcache.set("Uses", setcache.getInt("Uses", 0) + 1);
+			setcache.save(f);
+		} catch (Exception e) {
+			plugin.getLogger().warning("Hm. We were unable to restore " + p.getName() + "'s backup.");
+			plugin.debugError(e);
+			return new UndoOutcome(UndoResult.ERROR, secondsAgo);
+		}
+
+		Cooldowns.startFileCooldown(p);
+		return new UndoOutcome(UndoResult.RESTORED, secondsAgo);
 	}
 
 	static void backupInv(Player p) {
-		boolean debug = plugin.getConfig().getBoolean("options.debug");
+		if (!Settings.backupEnabled) {
+			return;
+		}
 
-		if (debug) {
+		if (Settings.debug) {
 			plugin.getLogger().info("[Debug] Calling backupInv() event.");
 		}
 
-		if (!plugin.getConfig().getBoolean("features.clearing.inv-backup.enabled")) {
+		final File dir = cacheDir();
+		if (!dir.isDirectory() && !dir.mkdirs()) {
+			plugin.getLogger().warning("Couldn't create the Cache folder, so " + p.getName()
+					+ "'s inventory was not backed up.");
 			return;
 		}
 
-		if (debug) {
-			plugin.getLogger().info("[Debug] Passed config check. (Inventory backups are enabled)");
-		}
-
-		File cache = new File(plugin.getDataFolder(), File.separator + "Cache");
-		File f = new File(cache, File.separator + "" + p.getUniqueId().toString() + ".yml");
-		FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
-
-		ItemStack[] inv = p.getInventory().getContents();
-
-		if (!f.exists()) {
-			if (debug) {
-				plugin.getLogger().info("[Debug] Cache file for " + p.getName() + " is being created...");
-			}
-			try {
-				setcache.save(f);
-			} catch (Exception fileerr) {
-				if (debug) {
-					plugin.getLogger().info("Error creating log:");
-					fileerr.printStackTrace();
-					plugin.getLogger().info("[End of Error] -----------------------------");
-					return;
-				}
-			}
-		}
-
-		if (debug) {
-			plugin.getLogger().info("[Debug] Passed original file creation check.");
-		}
-
-		if (!f.exists()) {
-			if (debug) {
-				plugin.getLogger().info("[Debug] Unusual Instance: UUID cache was trying to be made but wasn't.");
-			}
-			return;
-		}
-
-		if (debug) {
-			plugin.getLogger().info("[Debug] Passed final file check.");
-		}
+		final File f = cacheFile(p.getUniqueId());
+		final FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
 
 		setcache.set("Name", p.getName());
-		setcache.set("Inventory", inv);
+		setcache.set("Inventory", p.getInventory().getContents());
 		setcache.set("Last-Backup", System.currentTimeMillis());
+		setcache.set("Uses", 0);
+
 		try {
 			setcache.save(f);
-			if (debug) {
+			if (Settings.debug) {
 				plugin.getLogger().info("[Debug] Saved cache for: " + p.getName());
 			}
 		} catch (Exception fileerr) {
-			if (debug) {
-				plugin.getLogger().info("[Debug] Error creating log:");
-				fileerr.printStackTrace();
-				plugin.getLogger().info("[Debug]  [End of Error] -----------------------------");
-			}
+			plugin.getLogger().warning("Couldn't save the inventory backup for " + p.getName());
+			plugin.debugError(fileerr);
 		}
 	}
 
 	public static void go(Player p) {
-		final boolean debug = plugin.getConfig().getBoolean("options.debug");
-		List < Integer > animations = new ArrayList < Integer > ();
+		final List < Integer > animations = new ArrayList<>(5);
 
-		Cooldowns.active.put(p, p.getName());
-		plugin.clearMessage(p);
-		backupInv(p);
+		addIf(animations, 1, "Pane_Animation");
+		addIf(animations, 2, "Rainbow_Animation");
+		addIf(animations, 3, "Explode_Animation");
+		addIf(animations, 4, "Water_Animation");
+		addIf(animations, 5, "Fireball_Animation");
 
-		// ___________ANIMATIONS______
-
-		if (plugin.getConfig().getBoolean("features.clearing.animations.Pane_Animation.enabled")) {
-			animations.add(1);
-			if (debug) {
-				plugin.getLogger().info("[Debug] Adding Pane_Animation (1) to Animations array.");
-			}
-		}
-		if (plugin.getConfig().getBoolean("features.clearing.animations.Rainbow_Animation.enabled")) {
-			animations.add(2);
-			if (debug) {
-				plugin.getLogger().info("[Debug] Adding Rainbow_Animation (2) to Animations array.");
-			}
-		}
-		if (plugin.getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled")) {
-			animations.add(3);
-			if (debug) {
-				plugin.getLogger().info("[Debug] Adding Explode_Animation (3) to Animations array.");
-			}
-		}
-		if (plugin.getConfig().getBoolean("features.clearing.animations.Water_Animation.enabled")) {
-			animations.add(4);
-			if (debug) {
-				plugin.getLogger().info("[Debug] Adding Water_Animation (4) to Animations array.");
-			}
-		}
-
-		if (plugin.getConfig().getBoolean("features.clearing.animations.Fireball_Animation.enabled")) {
-			animations.add(5);
-			if (debug) {
-				plugin.getLogger().info("[Debug] Adding Fireball_Animation (5) to Animations array.");
-			}
-		}
-
-		if (animations.size() == 0 || animations.isEmpty()) {
+		if (animations.isEmpty()) {
 			plugin.getLogger().info("All animations were disabled in the config.yml. Aborting.");
-			Cooldowns.active.remove(p);
-			animations.clear(); // most likely not needed, but it helps me sleep at night
 			return;
 		}
 
-		PlayerClearInventoryEvent pce = new PlayerClearInventoryEvent(p);
+		// Fire the API event before anything is touched. It used to run after the
+		// player had already been marked active and their inventory backed up, and
+		// the cancel path returned without clearing that flag - which left the
+		// player permanently unable to clear, teleport or move items.
+		final PlayerClearInventoryEvent pce = new PlayerClearInventoryEvent(p);
 		Bukkit.getPluginManager().callEvent(pce);
 		if (pce.isCancelled()) {
 			return;
 		}
 
-		Random random = new Random();
-		Integer randomInt = animations.get(random.nextInt(animations.size()));
+		Cooldowns.markClearing(p);
+		plugin.clearMessage(p);
+		backupInv(p);
 
-		if (debug) {
-			plugin.getLogger().info("[Debug] Enabled Animations: " + animations.toString());
-			plugin.getLogger().info("[Debug] Using random animation: " + randomInt);
+		final int pick = animations.get(ThreadLocalRandom.current().nextInt(animations.size()));
+
+		if (Settings.debug) {
+			plugin.getLogger().info("[Debug] Enabled Animations: " + animations);
+			plugin.getLogger().info("[Debug] Using random animation: " + pick);
 		}
 
 		try {
-			if (randomInt == 1) {
-				MC1_20.animation1(p);
-			} else
-			if (randomInt == 2) {
-				MC1_20.animation2(p);
-			} else
-			if (randomInt == 3) {
-				MC1_20.animation3(p);
-			} else
-			if (randomInt == 4) {
-				MC1_20.animation4(p);
-			} else
-			if (randomInt == 5) {
-				MC1_20.animation5(p);
+			switch (pick) {
+				case 1 -> MC1_20.animation1(p);
+				case 2 -> MC1_20.animation2(p);
+				case 3 -> MC1_20.animation3(p);
+				case 4 -> MC1_20.animation4(p);
+				default -> MC1_20.animation5(p);
 			}
-			animations.clear();
 		} catch (Exception e) {
-			plugin.errorMsg(p, randomInt, e);
+			Cooldowns.unmarkClearing(p.getUniqueId());
+			Timeline.stop(p);
+			plugin.errorMsg(p, pick, e);
 		}
+	}
 
-	} //end of go event
+	private static void addIf(List < Integer > animations, int id, String name) {
+		if (plugin.getConfig().getBoolean("features.clearing.animations." + name + ".enabled")) {
+			animations.add(id);
+			if (Settings.debug) {
+				plugin.getLogger().info("[Debug] Adding " + name + " (" + id + ") to Animations array.");
+			}
+		}
+	}
 }

@@ -26,7 +26,8 @@ public record AnimationItem(Material material, String name, List<String> lore, i
         final ItemStack item = new ItemStack(material, amount);
         final ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(name == null ? BLANK_NAME : color(name));
+            // An empty name would otherwise show the vanilla name, the opposite of what name: '' asks for.
+            meta.setDisplayName(name == null || name.isEmpty() ? BLANK_NAME : color(name));
             if (!lore.isEmpty()) {
                 final List<String> lines = new ArrayList<>(lore.size());
                 for (String line : lore) {

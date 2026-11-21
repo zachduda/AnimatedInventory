@@ -46,9 +46,11 @@ public class Msgs {
 
 		try {
 			ActionBar.send(p, ChatColor.translateAlternateColorCodes('&', msg));
-		} catch (Exception e) {
+		} catch (Exception | LinkageError e) {
 			// Animations call this many times a second, so never keep retrying a
-			// path that has already proven broken on this server.
+			// path that has already proven broken on this server. LinkageError too:
+			// a server without the method throws that, and it used to escape here,
+			// ending the animation instead of falling back to chat.
 			actionBarWorks = false;
 			if (Settings.debug) {
 				plugin.getLogger().info("[Debug] Failed to use hotbar message. Using normal msgs from now on.");

@@ -47,7 +47,8 @@ public final class BukkitLookup implements AnimationLookup {
             {"ENTITY_EFFECT", "SPELL_MOB_AMBIENT"},
     };
 
-    private static final Map<String, String> PARTICLE_ALIASES;
+    /** Package-private so the tests can check every name in it is a real particle on one side. */
+    static final Map<String, String> PARTICLE_ALIASES;
 
     static {
         final Map<String, String> aliases = new HashMap<>();
@@ -65,6 +66,17 @@ public final class BukkitLookup implements AnimationLookup {
 
     @Override
     public Material item(String name) {
+        return itemMaterial(name);
+    }
+
+    /**
+     * A material that can sit in an inventory slot, or null. Accepts "minecart", "MINECART" and
+     * "minecraft:minecart". Never air, a legacy material, or a block that has no item form (ie: WATER).
+     */
+    public static Material itemMaterial(String name) {
+        if (name == null) {
+            return null;
+        }
         final Material material = Material.matchMaterial(name.trim());
         if (material == null || isLegacy(material) || isAir(material)) {
             return null;

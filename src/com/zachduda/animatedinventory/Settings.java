@@ -10,6 +10,8 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import com.zachduda.animatedinventory.animation.BukkitLookup;
+
 /**
  * A snapshot of every config value the plugin reads on a hot path.
  *
@@ -101,7 +103,7 @@ final class Settings {
         preventIfHurt = c.getBoolean("features.fortunes.prevent-if-being-hurt");
         healthRestricted = c.getBoolean("features.fortunes.health-restriction.enabled");
         healthMin = c.getDouble("features.fortunes.health-restriction.min");
-        goodLuck = c.getInt("features.fortunes.result.good-luck");
+        goodLuck = percent(c.getInt("features.fortunes.result.good-luck"));
         notifyConsole = c.getBoolean("features.fortunes.result.notify-console");
 
         cooldownsEnabled = c.getBoolean("options.cooldowns.enabled");
@@ -116,11 +118,24 @@ final class Settings {
         token = buildToken(c);
     }
 
+    /** good-luck is a percent chance, so anything outside 0-100 is pulled back in, with a warning. */
+    private static int percent(int goodLuck) {
+        if (goodLuck >= 0 && goodLuck <= 100) {
+            return goodLuck;
+        }
+        final int clamped = Math.max(0, Math.min(100, goodLuck));
+        plugin.getLogger().warning("features.fortunes.result.good-luck is a percent chance, from 0 to 100, but it's "
+                + goodLuck + ". Using " + clamped + ".");
+        return clamped;
+    }
+
     private static ItemStack buildToken(FileConfiguration c) {
         final String name = c.getString("features.clearing.token-item", "MINECART");
-        Material mat = Material.getMaterial(name == null ? "" : name.toUpperCase());
-        if (mat == null || mat == Material.AIR) {
-            plugin.getLogger().warning("features.clearing.token-item is not a valid material: '"
+        // An item that can actually sit in a slot: a block with no item form (ie: WATER) would
+        // be dropped from the inventory, and the marker could never be found again.
+        Material mat = BukkitLookup.itemMaterial(name);
+        if (mat == null) {
+            plugin.getLogger().warning("features.clearing.token-item is not an item: '"
                     + name + "'. Falling back to MINECART.");
             mat = Material.MINECART;
         }

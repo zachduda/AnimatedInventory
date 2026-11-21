@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -93,7 +94,9 @@ public class GUI implements Listener {
             return;
         }
 
-        if (e.getSlot() == YES_SLOT && clicked.getType() == Material.LIME_CONCRETE) {
+        // Raw slots: getSlot() is the index in whichever inventory was clicked, so a lime
+        // concrete in slot 12 of the player's own inventory used to count as YES.
+        if (e.getRawSlot() == YES_SLOT && clicked.getType() == Material.LIME_CONCRETE) {
             p.closeInventory();
             // Re-check: the config could have been reloaded, or a cooldown could
             // have started, while the prompt sat open.
@@ -103,10 +106,18 @@ public class GUI implements Listener {
             return;
         }
 
-        if (e.getSlot() == NO_SLOT && clicked.getType() == Material.RED_CONCRETE) {
+        if (e.getRawSlot() == NO_SLOT && clicked.getType() == Material.RED_CONCRETE) {
             p.closeInventory();
             plugin.pop(p);
             Msgs.sendBar(p, "&c&lClear Canceled. &fYour inventory won't be cleared.");
+        }
+    }
+
+    /** A drag isn't a click, so without this an item on the cursor could be spread into the menu. */
+    @EventHandler
+    public void inventoryDrag(InventoryDragEvent e) {
+        if (e.getView().getTopInventory().getHolder() instanceof ConfirmHolder) {
+            e.setCancelled(true);
         }
     }
 }

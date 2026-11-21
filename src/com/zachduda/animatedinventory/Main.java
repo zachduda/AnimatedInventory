@@ -1,8 +1,10 @@
 package com.zachduda.animatedinventory;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -28,16 +31,24 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -57,6 +68,8 @@ public class Main extends JavaPlugin implements Listener {
     /** Slots a player can actually carry: the 36 main inventory slots. */
     private static final int MAIN_SLOTS = 36;
 
+    private static final int HOTBAR_SLOTS = 9;
+
     /** Where each clear animation's on/off switch lived before they moved to the Animations folder. */
     private static final String LEGACY_ANIMATIONS = "features.clearing.animations";
 
@@ -68,6 +81,7 @@ public class Main extends JavaPlugin implements Listener {
     private Metrics metrics;
 
     private AnimationRegistry animations;
+    private FortuneRecovery fortuneRecovery;
     private boolean warnedAboutProtocolPlugins;
 
     private int mcMajorVersion;
@@ -161,6 +175,7 @@ public class Main extends JavaPlugin implements Listener {
         upgradeConfig();
         reloadSettings();
         animations = new AnimationRegistry(getDataFolder(), getLogger(), this::getResource, new BukkitLookup());
+        fortuneRecovery = new FortuneRecovery(getDataFolder(), getLogger());
         reloadAnimations();
         configChecks();
 
@@ -342,8 +357,14 @@ public class Main extends JavaPlugin implements Listener {
         if (Settings.slotSkipping) {
             final List < Integer > skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
             if (skipslot.stream().anyMatch(slot -> slot >= 0 && slot <= 8)) {
-                getLogger().warning("WARNING: You're choosing to skip a slot between 1-8 (Hotbar)."
+                getLogger().warning("WARNING: You're choosing to skip a slot between 0-8 (Hotbar)."
                         + " These WONT be skipped because they are part of the animations.");
+            }
+            // Armor and the off-hand follow clear-armor instead, so these were silently ignored.
+            final List<Integer> outside = skipslot.stream().filter(slot -> slot < 0 || slot >= MAIN_SLOTS).toList();
+            if (!outside.isEmpty()) {
+                getLogger().warning("WARNING: skip-slots " + outside + " aren't inventory slots a clear empties"
+                        + " (0-35), so they do nothing. Armor and the off-hand follow clear-armor instead.");
             }
             if (skipslot.contains(Settings.TOKEN_SLOT)) {
                 getLogger().warning("WARNING: Slot " + Settings.TOKEN_SLOT
@@ -380,15 +401,34 @@ public class Main extends JavaPlugin implements Listener {
         Msgs.sendBar(p, getConfig().getString("features.clearing.progress-msg"));
     }
 
-    @SuppressWarnings("UnstableApiUsage")
+    FortuneRecovery fortuneRecovery() {
+        return fortuneRecovery;
+    }
+
+    /**
+     * Holds on to the hotbar a fortune is about to draw over, in memory and on disk.
+     *
+     * Only the hotbar: that's all a fortune changes. This used to keep the whole inventory and
+     * put all of it back, which undid anything that happened to the other slots meanwhile. With
+     * prevent-move or prevent-drop off, a stack moved into a chest or dropped mid-fortune came
+     * back as well (a duplicate), and with prevent-pickup off, a picked-up item was deleted.
+     */
     void saveInv(Player p) {
-        Cooldowns.stashInventory(p, p.getInventory().getContents());
-        p.updateInventory(); // Spigot deprecated. Not always needed, but is a good failsafe.
+        final ItemStack[] hotbar = new ItemStack[HOTBAR_SLOTS];
+        for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
+            final ItemStack item = p.getInventory().getItem(slot);
+            hotbar[slot] = item == null ? null : item.clone();
+        }
+        Cooldowns.stashInventory(p, hotbar);
+        if (fortuneRecovery != null) {
+            fortuneRecovery.save(p.getUniqueId(), p.getName(), Arrays.asList(hotbar));
+        }
         if (Settings.debug) {
-            getLogger().info("[Debug] Saving " + p.getName() + "'s inventory in system.");
+            getLogger().info("[Debug] Saving " + p.getName() + "'s hotbar in system.");
         }
     }
 
+    /** Hands back the hotbar a fortune drew over, if it hasn't been already. */
     @SuppressWarnings("UnstableApiUsage")
     void loadInv(Player p) {
         final ItemStack[] saved = Cooldowns.peekInventory(p);
@@ -396,12 +436,36 @@ public class Main extends JavaPlugin implements Listener {
             // Nothing stored means it was already handed back, e.g. on quit.
             return;
         }
-        p.getInventory().clear();
-        p.getInventory().setContents(saved);
-        p.updateInventory(); // Spigot deprecated. Not always needed, but is a good failsafe.
-        if (Settings.debug) {
-            getLogger().info("[Debug] Loading back " + p.getName() + "'s inventory from system.");
+        for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
+            p.getInventory().setItem(slot, slot < saved.length ? saved[slot] : null);
         }
+        p.updateInventory(); // Spigot deprecated. Not always needed, but is a good failsafe.
+        settleFortune(p);
+        if (Settings.debug) {
+            getLogger().info("[Debug] Loading back " + p.getName() + "'s hotbar from system.");
+        }
+    }
+
+    /**
+     * Once the real hotbar is back, saves the player's data and deletes the crash copy.
+     *
+     * Saving first matters: the server's own autosave may have caught the spinner mid-fortune,
+     * and deleting the copy before the restored hotbar reached the disk would leave a crash in
+     * between with nothing to restore from.
+     */
+    private void settleFortune(Player p) {
+        if (fortuneRecovery == null || !fortuneRecovery.has(p.getUniqueId())) {
+            return;
+        }
+        try {
+            p.saveData();
+        } catch (RuntimeException e) {
+            // Keep the copy: it's still the safe one.
+            getLogger().warning("Couldn't save " + p.getName() + "'s data after their fortune, so its crash copy was kept.");
+            debugError(e);
+            return;
+        }
+        fortuneRecovery.discard(p.getUniqueId());
     }
 
     void deleteInv(Player p) {
@@ -523,7 +587,7 @@ public class Main extends JavaPlugin implements Listener {
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 2.0F, 2.0F);
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true) // Makes sure to override any /clear or /ci commands
     public void onCommandPreProcess(PlayerCommandPreprocessEvent e) {
         if (!Settings.clearOverride || !Settings.clearEnabled) {
             return;
@@ -557,59 +621,200 @@ public class Main extends JavaPlugin implements Listener {
         return null;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickUp(EntityPickupItemEvent event) {
-        if (!Settings.preventPickup || !(event.getEntity() instanceof Player p)) {
-            return;
-        }
-        if (Cooldowns.isBusy(p)) {
+        if (event.getEntity() instanceof Player p && Cooldowns.isBusy(p) && (Settings.preventPickup || frozen(p))) {
             event.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    /**
+     * Whether nothing at all may leave the player's inventory right now, whatever the prevent-
+     * settings say.
+     *
+     * True during a clear while inventory backups are on. The backup is taken as the clear
+     * starts, so an item that left the inventory before the wipe - dropped, put in a chest,
+     * swapped into an off-hand the clear keeps, placed, eaten or thrown - was in the world and in
+     * the backup at once, and /ai undoclear handed it out a second time. Picking things up is
+     * held off too: the backup doesn't have them, so the wipe would take them for good.
+     */
+    private static boolean frozen(Player p) {
+        return Settings.backupEnabled && Cooldowns.isClearing(p);
+    }
+
+    private static boolean holding(ItemStack item) {
+        return item != null && item.getType() != Material.AIR;
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onWater(PlayerBucketEmptyEvent e) {
-        if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (Settings.preventPlace || frozen(p))) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    /**
+     * prevent-move covers the player's own items. The animation's can never be moved, since
+     * one moved into a chest, or into a slot the clear skips, would be the player's to keep.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInv(InventoryClickEvent e) {
-        if (!Settings.preventMove || !(e.getWhoClicked() instanceof Player p)) {
+        if (!(e.getWhoClicked() instanceof Player p) || !Cooldowns.isBusy(p)) {
             return;
         }
-        if (Cooldowns.isBusy(p)) {
+        if (Settings.preventMove || frozen(p) || movesAnimationItem(p, e)) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    /** The clicked item, the one on the cursor, and the hotbar slot a number key swaps with. */
+    private static boolean movesAnimationItem(Player p, InventoryClickEvent e) {
+        if (MC1_20.isAnimationItem(p, e.getCurrentItem()) || MC1_20.isAnimationItem(p, e.getCursor())) {
+            return true;
+        }
+        final int button = e.getHotbarButton();
+        return button >= 0 && MC1_20.isAnimationItem(p, p.getInventory().getItem(button));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDrag(InventoryDragEvent e) {
+        if (e.getWhoClicked() instanceof Player p && Cooldowns.isBusy(p)
+                && (Settings.preventMove || frozen(p) || MC1_20.isAnimationItem(p, e.getOldCursor()))) {
+            e.setCancelled(true);
+        }
+    }
+
+    /**
+     * The swap-hands key moves items too, but nothing used to stop it. With clear-armor off,
+     * the off-hand survives a clear, so an animation item swapped into it was kept.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onSwapHands(PlayerSwapHandItemsEvent e) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (Settings.preventMove || frozen(p) || MC1_20.isAnimationItem(p, e.getMainHandItem())
+                || MC1_20.isAnimationItem(p, e.getOffHandItem()))) {
+            e.setCancelled(true);
+        }
+    }
+
+    /**
+     * Using an animation item hands it out too: a TNT minecart put on a rail, an item put in a
+     * frame, a fire charge, food. None of those go through the events prevent-place covers, so
+     * they worked with every prevent- setting on.
+     *
+     * Not ignoreCancelled: a right-click on the air arrives already cancelled, and still uses
+     * the item unless it's denied here.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onUse(PlayerInteractEvent e) {
+        final Player p = e.getPlayer();
+        // Right-clicks only: a left-click or a pressure plate can't hand out the item.
+        final boolean using = e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK;
+        if (using && Cooldowns.isBusy(p)
+                && (MC1_20.isAnimationItem(p, e.getItem()) || (frozen(p) && holding(e.getItem())))) {
+            e.setCancelled(true);
+        }
+    }
+
+    /** Item frames, allays, animals and the like. Also gets PlayerInteractAtEntityEvent. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onUseOnEntity(PlayerInteractEntityEvent e) {
+        final Player p = e.getPlayer();
+        if (!Cooldowns.isBusy(p)) {
+            return;
+        }
+        final ItemStack used = e.getHand() == EquipmentSlot.OFF_HAND
+                ? p.getInventory().getItemInOffHand() : p.getInventory().getItemInMainHand();
+        if (MC1_20.isAnimationItem(p, used) || (frozen(p) && holding(used))) {
+            e.setCancelled(true);
+        }
+    }
+
+    /** Has its own handler list, so onUseOnEntity doesn't see it. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onArmorStand(PlayerArmorStandManipulateEvent e) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (frozen(p) || MC1_20.isAnimationItem(p, e.getPlayerItem()))) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onConsume(PlayerItemConsumeEvent e) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (frozen(p) || MC1_20.isAnimationItem(p, e.getItem()))) {
+            e.setCancelled(true);
+        }
+    }
+
+    /** prevent-drop covers the player's own items. The animation's are never theirs to drop. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
-        if (Settings.preventDrop && Cooldowns.isBusy(e.getPlayer())) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p)
+                && (Settings.preventDrop || frozen(p) || MC1_20.isAnimationItem(p, e.getItemDrop().getItemStack()))) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler
+    /**
+     * Someone died mid-animation.
+     *
+     * With prevent-drop on, or during a clear while inventory backups are on (see frozen()),
+     * they keep their inventory, so the animation can finish with it: a
+     * clear empties what it always empties, and a fortune puts the hotbar back. This used to
+     * cancel the drops and let the inventory be emptied, destroying what a clear would have kept
+     * (skipped slots, and armor with clear-armor off).
+     *
+     * With it off, it's an ordinary death, except the animation's own items never drop. They
+     * used to, so dying mid-clear handed out the animation's TNT, water buckets and marker. A
+     * fortune drops the real hotbar it was holding in place of its spinner, and ends there.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
-        if (!Settings.preventDrop) {
-            return;
-        }
         final Player p = event.getEntity();
         if (!Cooldowns.isBusy(p)) {
             return;
         }
 
-        if (!event.getKeepInventory()) {
+        if (Settings.preventDrop || frozen(p)) {
+            event.setKeepInventory(true);
             event.getDrops().clear();
+            getLogger().info(p.getName() + " died. Their drops were canceled!");
+            Msgs.send(p, getConfig().getString("messages.death"));
+            return;
         }
 
-        getLogger().info(p.getName() + " died. Their drops were canceled!");
-        Msgs.send(p, getConfig().getString("messages.death"));
+        event.getDrops().removeIf(drop -> MC1_20.isAnimationItem(p, drop));
+        if (Cooldowns.isFortune(p) && !event.getKeepInventory()) {
+            final ItemStack[] hotbar = Cooldowns.peekInventory(p);
+            if (hotbar != null) {
+                for (ItemStack item : hotbar) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        event.getDrops().add(item);
+                    }
+                }
+            }
+            endFortuneUnrestored(p);
+        }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    /**
+     * Ends a fortune whose hotbar has gone somewhere other than back into the inventory (onto the
+     * ground, on death). The copy on disk goes too, so a crash can't hand those items back twice.
+     */
+    private void endFortuneUnrestored(Player p) {
+        Timeline.stop(p);
+        Cooldowns.unmarkFortune(p.getUniqueId());
+        deleteInv(p);
+        if (fortuneRecovery != null) {
+            fortuneRecovery.discard(p.getUniqueId());
+        }
+        MC1_20.fireFortuneEnd(p);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSlotChange(PlayerItemHeldEvent e) {
         if (Settings.preventSlotChange && Cooldowns.isBusy(e.getPlayer())) {
             e.setCancelled(true);
@@ -633,16 +838,18 @@ public class Main extends JavaPlugin implements Listener {
         Cooldowns.removeAll(player);
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerPlaceBlock(BlockPlaceEvent e) {
-        if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (Settings.preventPlace || frozen(p) || MC1_20.isAnimationItem(p, e.getItemInHand()))) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerBucketFill(PlayerBucketFillEvent e) {
-        if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (Settings.preventPlace || frozen(p))) {
             e.setCancelled(true);
         }
     }
@@ -681,7 +888,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private boolean oneArg(CommandSender sender, String sub) {
-        switch (sub.toLowerCase()) {
+        switch (sub.toLowerCase(Locale.ROOT)) {
             case "help" -> sendHelp(sender);
 
             case "version" -> {
@@ -779,7 +986,7 @@ public class Main extends JavaPlugin implements Listener {
                 }
                 Msgs.send(sender, Objects.requireNonNull(
                         getConfig().getString("messages.not-a-command")).replace("%cmd%", sub));
-                if (sub.toLowerCase().contains("undo")) {
+                if (sub.toLowerCase(Locale.ROOT).contains("undo")) {
                     Msgs.send(sender, getConfig().getString("messages.undo-suggestion"));
                 }
             }
@@ -973,7 +1180,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        Cooldowns.markFortune(p);
+        // MC1_20.fortune marks them, once PlayerFortuneEvent has had its say.
         if (Settings.debug) {
             getLogger().info("[Debug] Self induced fortune: " + p.getName());
         }
@@ -1045,7 +1252,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private boolean twoArgs(CommandSender sender, String sub, String targetName) {
-        switch (sub.toLowerCase()) {
+        switch (sub.toLowerCase(Locale.ROOT)) {
             case "undoclear" -> undoClearOther(sender, targetName);
             case "clear" -> clearOther(sender, targetName, null);
             case "fortune" -> fortuneOther(sender, targetName);
@@ -1140,6 +1347,11 @@ public class Main extends JavaPlugin implements Listener {
                         + (loaded.isEmpty() ? "None are loaded." : "Try: &7" + loaded));
                 return;
             }
+        } else if (animations.enabled().isEmpty()) {
+            // Clear.go would only log this, after the sender had been told it worked.
+            fail(sender, "&c&lHm. &fNo clear animations are turned on. Name one to play it anyway, or set"
+                    + " 'enabled: true' in a file in the " + AnimationRegistry.FOLDER + " folder.");
+            return;
         }
 
         final Player target = resolveTarget(sender, name);
@@ -1151,7 +1363,7 @@ public class Main extends JavaPlugin implements Listener {
             levelup(p);
         }
         Msgs.send(sender, Objects.requireNonNull(
-                getConfig().getString("messages.clear-other-success")).replace("%player%", name));
+                getConfig().getString("messages.clear-other-success")).replace("%player%", target.getName()));
         Clear.go(target, animation);
     }
 
@@ -1169,11 +1381,9 @@ public class Main extends JavaPlugin implements Listener {
             levelup(p);
         }
         Msgs.send(sender, Objects.requireNonNull(
-                getConfig().getString("messages.fortune-other-success")).replace("%player%", name));
+                getConfig().getString("messages.fortune-other-success")).replace("%player%", target.getName()));
 
-        // Mark them busy before the animation starts, so anything the first frame
-        // triggers already sees the fortune as running.
-        Cooldowns.markFortune(target);
+        // MC1_20.fortune marks them busy before the first frame can run.
         try {
             MC1_20.fortune(target);
         } catch (Exception e) {
@@ -1182,7 +1392,9 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    @EventHandler
+    // MONITOR and ignoreCancelled: damage another plugin cancelled (ie: spawn protection)
+    // never landed, so it mustn't block a fortune.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent e) {
         if (!Settings.preventIfHurt || e.getCause() == DamageCause.FALL) {
             return;
@@ -1192,7 +1404,7 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onTP(PlayerTeleportEvent e) {
         if (!preventglitch) {
             return;
@@ -1240,6 +1452,23 @@ public class Main extends JavaPlugin implements Listener {
                         + "'s fortune is glitched because they switched inventories. Restoring their items.");
             }
         }, 12L);
+    }
+
+    /**
+     * Tidies up after an animation a crash cut short, which left its items in the player's
+     * saved data. A fortune's hotbar comes back from its copy on disk, and a clear is finished,
+     * which is what the player had asked for.
+     */
+    @EventHandler
+    public void onJoinRecover(PlayerJoinEvent e) {
+        final Player p = e.getPlayer();
+        MC1_20.recoverFortune(p);
+        if (!Cooldowns.isBusy(p) && MC1_20.hasTokenItem(p)) {
+            wipeInventory(p);
+            getLogger().info("Finished clearing " + p.getName() + "'s inventory. Their clear was cut short when the"
+                    + " server stopped.");
+            Msgs.sendPrefix(p, "§c§lSorry! §fYour clear was cut short, so it's been finished now.");
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

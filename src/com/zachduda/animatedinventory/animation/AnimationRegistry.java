@@ -132,8 +132,15 @@ public final class AnimationRegistry {
         }
 
         int problems = 0;
+        for (File misnamed : listFiles(".yaml")) {
+            final String base = misnamed.getName().substring(0, misnamed.getName().length() - ".yaml".length());
+            logger.warning("Skipped " + FOLDER + "/" + misnamed.getName() + ". Animation files have to end in .yml,"
+                    + " so rename it to " + base + ".yml");
+            problems++;
+        }
+
         final Map<String, File> files = new TreeMap<>();
-        for (File file : listYaml()) {
+        for (File file : listFiles(".yml")) {
             final String base = file.getName().substring(0, file.getName().length() - ".yml".length());
             if (!VALID_NAME.matcher(base).matches()) {
                 logger.warning("Skipped " + FOLDER + "/" + file.getName() + ". Animation file names can only use"
@@ -169,9 +176,9 @@ public final class AnimationRegistry {
         return true;
     }
 
-    private List<File> listYaml() {
+    private List<File> listFiles(String extension) {
         final File[] found = folder.listFiles((dir, name) -> !name.startsWith(".")
-                && name.toLowerCase(Locale.ROOT).endsWith(".yml"));
+                && name.toLowerCase(Locale.ROOT).endsWith(extension));
         if (found == null) {
             return List.of();
         }
@@ -283,8 +290,28 @@ public final class AnimationRegistry {
         }
     }
 
+    /**
+     * Loads one file, or returns null after saying why it couldn't be.
+     *
+     * Nothing a file contains may escape from here: reload() runs from onEnable, so one file that
+     * threw would leave the whole plugin disabled. SnakeYAML throws its own unchecked exception for
+     * some structures, and a YAML alias that refers back to itself overflows the stack.
+     */
     private ClearAnimation load(String name, File file) {
         final String where = FOLDER + "/" + file.getName();
+        try {
+            return parse(name, file, where);
+        } catch (RuntimeException | StackOverflowError e) {
+            logger.warning("Skipped " + where + ", since it couldn't be read: " + e.getClass().getSimpleName()
+                    + (e.getMessage() == null ? "" : ": " + e.getMessage().lines().findFirst().orElse(""))
+                    + ". Fix it, then run /ai reload."
+                    + (e instanceof StackOverflowError ? " (A YAML alias like *name that refers back to"
+                    + " itself causes this.)" : ""));
+            return null;
+        }
+    }
+
+    private ClearAnimation parse(String name, File file, String where) {
         final YamlConfiguration yaml = new YamlConfiguration();
         try {
             yaml.loadFromString(read(file));

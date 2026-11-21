@@ -30,24 +30,70 @@ import org.bukkit.scheduler.BukkitTask;
  */
 final class Timeline {
 
+    /** A scheduled frame that can still be called off. */
+    @FunctionalInterface
+    interface Task {
+        void cancel();
+    }
+
+    /**
+     * What a timeline needs from the server. {@link #bukkit} is the real one; the tests drive
+     * a timeline tick by tick with their own.
+     */
+    interface Host {
+        /** Runs {@code action} on the main thread after {@code delayTicks} ticks. */
+        Task runLater(Runnable action, long delayTicks);
+
+        /** The player, or null once they're offline. */
+        Player onlinePlayer(UUID id);
+
+        /** A frame threw. The timeline has already been stopped. */
+        void frameFailed(Player p, String what, Throwable e);
+    }
+
+    static Host bukkit(Main plugin) {
+        return new Host() {
+            @Override
+            public Task runLater(Runnable action, long delayTicks) {
+                final BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, action, delayTicks);
+                return task::cancel;
+            }
+
+            @Override
+            public Player onlinePlayer(UUID id) {
+                final Player p = Bukkit.getPlayer(id);
+                return p != null && p.isOnline() ? p : null;
+            }
+
+            @Override
+            public void frameFailed(Player p, String what, Throwable e) {
+                plugin.frameError(p, what, e);
+            }
+        };
+    }
+
     private static final Map<UUID, Timeline> RUNNING = new HashMap<>();
 
     private record Frame(long tick, Consumer<Player> action) {
     }
 
-    private final Main plugin;
+    private final Host host;
     private final UUID id;
     /** What's playing, for error messages. ie: "'explosion' clear animation" */
     private final String what;
     private final List<Frame> frames = new ArrayList<>();
 
-    private BukkitTask task;
+    private Task task;
     private int next;
     private long cursor;
 
     Timeline(Main plugin, Player p, String what) {
-        this.plugin = plugin;
-        this.id = p.getUniqueId();
+        this(bukkit(plugin), p.getUniqueId(), what);
+    }
+
+    Timeline(Host host, UUID id, String what) {
+        this.host = host;
+        this.id = id;
         this.what = what;
     }
 
@@ -65,6 +111,7 @@ final class Timeline {
         if (frames.isEmpty()) {
             return;
         }
+        // A stable sort: frames on the same tick keep the order they were added in.
         frames.sort(Comparator.comparingLong(Frame::tick));
         stop(id);
         RUNNING.put(id, this);
@@ -73,12 +120,16 @@ final class Timeline {
 
     private void schedule() {
         final long delay = Math.max(0L, frames.get(next).tick() - cursor);
-        task = Bukkit.getScheduler().runTaskLater(plugin, this::fire, delay);
+        task = host.runLater(this::fire, delay);
+    }
+
+    private boolean isLive() {
+        return RUNNING.get(id) == this;
     }
 
     private void fire() {
-        final Player p = Bukkit.getPlayer(id);
-        if (p == null || !p.isOnline()) {
+        final Player p = host.onlinePlayer(id);
+        if (p == null) {
             // They left mid-animation. Main#onLeave already tidied their
             // inventory, so just drop the rest of the frames.
             release();
@@ -87,20 +138,22 @@ final class Timeline {
 
         cursor = frames.get(next).tick();
         try {
-            while (next < frames.size() && frames.get(next).tick() == cursor) {
+            // A frame can cancel this timeline - /ai glitched and a forced clear both go
+            // through stop(), and a listener of an event a frame fires can start a new
+            // animation. Once that happens, the frames left on this tick belong to an
+            // animation that's over, so they mustn't draw over its replacement.
+            while (next < frames.size() && frames.get(next).tick() == cursor && isLive()) {
                 frames.get(next++).action().accept(p);
             }
         } catch (Exception | LinkageError e) {
             // LinkageError too: a call this server version doesn't have would otherwise escape
             // the scheduler with this timeline still registered, leaving the player stuck.
             release();
-            plugin.frameError(p, what, e);
+            host.frameFailed(p, what, e);
             return;
         }
 
-        // A frame can cancel this timeline - /ai glitched and a forced clear both
-        // go through stop() - so only chain on if we are still the live one.
-        if (next < frames.size() && RUNNING.get(id) == this) {
+        if (next < frames.size() && isLive()) {
             schedule();
         } else {
             release();

@@ -20,6 +20,7 @@ import com.zachduda.animatedinventory.animation.AnimationParticle;
 import com.zachduda.animatedinventory.animation.AnimationSound;
 import com.zachduda.animatedinventory.animation.ClearAnimation;
 import com.zachduda.animatedinventory.animation.Frame;
+import com.zachduda.animatedinventory.animation.Placeholders;
 import com.zachduda.animatedinventory.api.PlayerFortuneEndEvent;
 import com.zachduda.animatedinventory.api.PlayerFortuneEvent;
 
@@ -87,17 +88,26 @@ public class MC1_20 implements Listener {
 
                 if (Cooldowns.isFortune(online)
                         || (online.getInventory().contains(one) && online.getInventory().contains(two))) {
-                    online.getInventory().clear();
                     plugin.getLogger().info("Attempted to restore " + online.getName()
                             + "'s inventory. (They were in the middle of a fortune)");
                     Cooldowns.unmarkFortune(online.getUniqueId());
                     Msgs.sendPrefix(online, "§c§lSorry! §fThe plugin was reloaded, we have ended your fortune.");
                     plugin.bass(online);
-                    try {
-                        plugin.loadInv(online);
-                    } catch (Exception e) {
-                        plugin.getLogger().warning("ERROR! Couldn't restore " + online.getName()
-                                + "'s inventory on plugin disable!");
+                    if (Cooldowns.peekInventory(online) != null) {
+                        try {
+                            // loadInv replaces every slot, so there's nothing to clear first.
+                            plugin.loadInv(online);
+                        } catch (Exception e) {
+                            plugin.getLogger().warning("ERROR! Couldn't restore " + online.getName()
+                                    + "'s inventory on plugin disable!");
+                        }
+                    } else {
+                        // Spotted by its items after a restart, so the real hotbar is gone with the
+                        // old memory. A fortune only ever draws on the hotbar: this used to clear the
+                        // whole inventory, wiping the 27 slots and armor it never touched.
+                        for (int slot = 0; slot < HOTBAR; slot++) {
+                            online.getInventory().setItem(slot, null);
+                        }
                     }
                     plugin.deleteInv(online);
                     fireFortuneEnd(online);
@@ -140,18 +150,54 @@ public class MC1_20 implements Listener {
         Bukkit.getPluginManager().callEvent(new PlayerFortuneEndEvent(p, lucky));
     }
 
+    /**
+     * Plays a fortune, unless the player is already in an animation or a listener cancels it.
+     *
+     * The player is marked as having a fortune here, after PlayerFortuneEvent. Every caller used
+     * to mark them first, so a cancelled event left them flagged with nothing running: unable to
+     * move items, drop or teleport, and with their real inventory wiped on the next plugin reload
+     * (emergencyRemove found the flag but no stashed inventory to give back).
+     */
     public static void fortune(final Player p) {
+        // A second animation on top of this one would stash its half-drawn hotbar as the
+        // "real" inventory. The API can get here with its checks turned off.
+        if (Cooldowns.isBusy(p)) {
+            return;
+        }
+
         final PlayerFortuneEvent pfe = new PlayerFortuneEvent(p);
         Bukkit.getPluginManager().callEvent(pfe);
         if (pfe.isCancelled()) {
             return;
         }
 
-        plugin.saveInv(p);
-
+        // Everything that reads the config comes first, so a problem with it can't leave the
+        // hotbar half-drawn.
         final ItemStack wgp = named(Material.WHITE_STAINED_GLASS_PANE, "§7§l§m---");
         final ItemStack one = fortuneItem("features.fortunes.yes-block.name", Material.LIME_CONCRETE);
         final ItemStack two = fortuneItem("features.fortunes.no-block.name", Material.RED_CONCRETE);
+
+        // good-luck is the percent chance of a yes: 0 never, 100 always. The roll is 0 to 99,
+        // so this was "<=", which made 50 a 51% chance and 0 a 1% chance.
+        final int roll = ThreadLocalRandom.current().nextInt(100);
+        final boolean lucky = roll < Settings.goodLuck;
+
+        final String spinMessage = plugin.getConfig().getString("features.fortunes.spin-message", "Spinning...");
+        final String spin = "§f§l§o" + spinMessage;
+        final String spinAlt = "§7§l§o" + spinMessage;
+        final String result = plugin.getConfig().getString(
+                lucky ? "features.fortunes.result.-yes" : "features.fortunes.result.-no");
+        final String doneMsg = ChatColor.translateAlternateColorCodes('&',
+                Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.done-msg", "&a&lDone!")));
+
+        if (Settings.debug) {
+            plugin.getLogger().info("[Debug] Final Int Pick: " + roll + " (0 to 99)");
+            plugin.getLogger().info("[Debug] For Yes the # must be less than " + Settings.goodLuck
+                    + ". Otherwise, it's no.");
+        }
+
+        Cooldowns.markFortune(p);
+        plugin.saveInv(p);
 
         plugin.pop(p);
         for (int slot = 0; slot < HOTBAR; slot++) {
@@ -159,22 +205,6 @@ public class MC1_20 implements Listener {
         }
         p.getInventory().setItem(2, one);
         p.getInventory().setItem(6, two);
-
-        final int roll = ThreadLocalRandom.current().nextInt(100);
-        final boolean lucky = roll <= Settings.goodLuck;
-
-        if (Settings.debug) {
-            plugin.getLogger().info("[Debug] Final Int Pick: " + roll);
-            plugin.getLogger().info("[Debug] For Yes the # must be less than or equal to "
-                    + Settings.goodLuck + ". Otherwise, it's no. Max Number: 100");
-        }
-
-        final String spin = "§f§l§o" + plugin.getConfig().getString("features.fortunes.spin-message");
-        final String spinAlt = "§7§l§o" + plugin.getConfig().getString("features.fortunes.spin-message");
-        final String result = plugin.getConfig().getString(
-                lucky ? "features.fortunes.result.-yes" : "features.fortunes.result.-no");
-        final String doneMsg = ChatColor.translateAlternateColorCodes('&',
-                Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.done-msg", "&a&lDone!")));
 
         final Timeline timeline = new Timeline(plugin, p, "fortune animation");
 
@@ -253,8 +283,6 @@ public class MC1_20 implements Listener {
         final Map<Character, ItemStack> items = new HashMap<>();
         animation.items().forEach((symbol, item) -> items.put(symbol, item.build()));
 
-        putTokenItem(p);
-
         final Timeline timeline = new Timeline(plugin, p, "'" + animation.name() + "' clear animation");
         long tick = 0;
         for (Frame frame : animation.frames()) {
@@ -269,6 +297,11 @@ public class MC1_20 implements Listener {
             plugin.finishClear(player, finish.actionBar() == null ? null : fill(finish.actionBar(), player));
         });
         timeline.start();
+
+        // After start(), which is the only call here that can still fail (the scheduler refuses
+        // a plugin that's shutting down). The first frame can't run before next tick, so this
+        // is no later than it was, and a failed start no longer leaves the marker behind.
+        putTokenItem(p);
     }
 
     private static void playFrame(Player p, ClearAnimation animation, Frame frame, Map<Character, ItemStack> items) {
@@ -314,12 +347,11 @@ public class MC1_20 implements Listener {
         }
     }
 
+    /** Only reads the config when the text has a placeholder for it; frames call this every tick or two. */
     private static String fill(String text, Player p) {
-        return text.replace("%player%", p.getName())
-                .replace("%progress-msg%", Objects.requireNonNullElse(
-                        plugin.getConfig().getString("features.clearing.progress-msg"), ""))
-                .replace("%done-msg%", Objects.requireNonNullElse(
-                        plugin.getConfig().getString("features.clearing.done-msg"), ""));
+        return Placeholders.fill(text, p.getName(),
+                () -> plugin.getConfig().getString("features.clearing.progress-msg"),
+                () -> plugin.getConfig().getString("features.clearing.done-msg"));
     }
 
     /**
@@ -329,7 +361,8 @@ public class MC1_20 implements Listener {
      * time. One broken effect shouldn't end the clear, or spam the console every frame.
      */
     private static void safely(ClearAnimation animation, Object effect, Runnable action) {
-        if (BROKEN_EFFECTS.contains(effect)) {
+        // Almost always empty, and hashing a particle record isn't free, so skip it then.
+        if (!BROKEN_EFFECTS.isEmpty() && BROKEN_EFFECTS.contains(effect)) {
             return;
         }
         try {

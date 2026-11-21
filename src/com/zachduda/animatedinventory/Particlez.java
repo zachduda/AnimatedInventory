@@ -7,6 +7,8 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 
+import com.zachduda.animatedinventory.animation.BukkitLookup;
+
 /** The fortune's particles. Clear animations bring their own, from the Animations folder. */
 public class Particlez implements Listener {
     private static final Main plugin = Main.getPlugin(Main.class);
@@ -23,18 +25,25 @@ public class Particlez implements Listener {
     private static final Particle NO_PARTICLE;
     private static final Object NO_PARTICLE_DATA;
 
+    /**
+     * Looked up by name rather than written as Particle.HAPPY_VILLAGER: that constant was
+     * VILLAGER_HAPPY before 1.20.5, so on those servers referencing it threw NoSuchFieldError
+     * and ended every "yes" fortune with an error. resolveParticle knows both names.
+     */
+    private static final Particle YES_PARTICLE = BukkitLookup.resolveParticle("HAPPY_VILLAGER");
+
     static {
-        Particle particle = null;
+        Particle particle = BukkitLookup.resolveParticle("BLOCK_MARKER");
         Object data = null;
-        try {
-            particle = Particle.valueOf("BLOCK_MARKER");
-            data = Bukkit.createBlockData(Material.BARRIER);
-        } catch (Throwable modernUnavailable) {
+        if (particle != null) {
             try {
-                particle = Particle.valueOf("BARRIER");
-            } catch (Throwable legacyUnavailable) {
+                data = Bukkit.createBlockData(Material.BARRIER);
+            } catch (RuntimeException | LinkageError unavailable) {
                 particle = null;
             }
+        }
+        if (particle == null) {
+            particle = BukkitLookup.resolveParticle("BARRIER");
         }
         NO_PARTICLE = particle;
         NO_PARTICLE_DATA = data;
@@ -54,19 +63,19 @@ public class Particlez implements Listener {
 
     private static void spawn(Player p, Particle particle, String name, int count,
                               double ox, double oy, double oz) {
-        if (!enabled()) {
+        if (!enabled() || particle == null) {
             return;
         }
         try {
             final World world = p.getWorld();
             world.spawnParticle(particle, p.getLocation().add(0, 1, 0), count, ox, oy, oz);
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             pErr(name);
         }
     }
 
     static void yesParticle(Player p) {
-        spawn(p, Particle.HAPPY_VILLAGER, "HAPPY_VILLAGER", 50, 0.5D, 0.3D, 0.5D);
+        spawn(p, YES_PARTICLE, "HAPPY_VILLAGER", 50, 0.5D, 0.3D, 0.5D);
     }
 
     static void noParticle(Player p) {
@@ -79,7 +88,7 @@ public class Particlez implements Listener {
             } else {
                 p.spawnParticle(NO_PARTICLE, p.getLocation().add(0, 1, 0), 5, 0.5D, 0.3D, 0.5D);
             }
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             pErr("BARRIER");
         }
     }

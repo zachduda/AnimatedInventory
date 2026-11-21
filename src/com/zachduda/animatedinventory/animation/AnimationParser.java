@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import org.bukkit.Color;
 import org.bukkit.Material;
@@ -43,6 +44,9 @@ public final class AnimationParser {
     private static final List<String> PARTICLE_OPTIONS =
             List.of("particle", "count", "offset", "speed", "height", "color", "size", "block", "item");
     private static final List<String> PARTICLE_DATA_OPTIONS = List.of("color", "size", "block", "item");
+
+    /** Splits lore text into lines. Trailing breaks, like the one a "lore: |" block ends with, are dropped. */
+    private static final Pattern LINE_BREAK = Pattern.compile("\\r?\\n");
 
     /** @param animation the parsed animation, or null when there were errors */
     public record Result(ClearAnimation animation, List<String> errors, List<String> warnings) {
@@ -128,10 +132,13 @@ public final class AnimationParser {
         unknownOptions(where, options, ITEM_OPTIONS);
 
         Material material = null;
-        if (options.get("material") instanceof String materialName) {
+        final Object materialNode = options.get("material");
+        if (materialNode instanceof String materialName) {
             material = material(where, materialName);
-        } else {
+        } else if (materialNode == null) {
             error(where, "Missing its 'material', like:  material: WHITE_STAINED_GLASS_PANE");
+        } else {
+            error(where, "'material' must be a material name, like:  material: WHITE_STAINED_GLASS_PANE");
         }
         final String name = text(where, options, "name");
         final List<String> lore = lore(where, options.get("lore"));
@@ -152,18 +159,26 @@ public final class AnimationParser {
         return null;
     }
 
+    /**
+     * Lore as one line per entry. A block of text (lore: |) is split on its line breaks, since
+     * Minecraft shows a line break inside a lore line as nothing at all.
+     */
     private List<String> lore(String where, Object node) {
         if (node == null) {
             return List.of();
         }
         if (isScalar(node)) {
-            return List.of(String.valueOf(node));
+            return lines(String.valueOf(node));
         }
         if (node instanceof List<?> lines && lines.stream().allMatch(AnimationParser::isScalar)) {
-            return lines.stream().map(String::valueOf).toList();
+            return lines.stream().flatMap(line -> lines(String.valueOf(line)).stream()).toList();
         }
         error(where, "'lore' must be a line of text, or a list of lines.");
         return List.of();
+    }
+
+    private static List<String> lines(String text) {
+        return List.of(LINE_BREAK.split(text));
     }
 
     //______________________________________________________________ Frames
@@ -375,29 +390,41 @@ public final class AnimationParser {
     private Object particleData(String where, Particle particle, Map<String, Object> options) {
         final Class<?> type = particle.getDataType();
         if (type == null || type == Void.class) {
-            for (String option : PARTICLE_DATA_OPTIONS) {
-                if (options.containsKey(option)) {
-                    warn(where, "'" + option + "' was ignored, since this particle doesn't use it.");
-                }
-            }
+            ignoreDataOptions(where, options, List.of());
             return null;
         }
         if (type == Particle.DustOptions.class) {
+            ignoreDataOptions(where, options, List.of("color", "size"));
             final Color color = color(where, options.get("color"));
             final double size = number(where, options, "size", 1, 0.01, 4);
             return color == null ? null : new Particle.DustOptions(color, (float) size);
         }
         if (type == Color.class) {
+            ignoreDataOptions(where, options, List.of("color"));
             return color(where, options.get("color"));
         }
         if (BlockData.class.isAssignableFrom(type)) {
+            ignoreDataOptions(where, options, List.of("block"));
             return named(where, options, "block", lookup::blockData, "a block");
         }
         if (type == ItemStack.class) {
+            ignoreDataOptions(where, options, List.of("item"));
             return named(where, options, "item", lookup::itemData, "an item");
         }
         error(where, "This particle needs settings that animation files can't set, so pick a different one.");
         return null;
+    }
+
+    /**
+     * Warns about the data options this particle has no use for, like a 'color' on a BLOCK
+     * particle. Without this, only a particle that takes no data at all had them pointed out.
+     */
+    private void ignoreDataOptions(String where, Map<String, Object> options, List<String> used) {
+        for (String option : PARTICLE_DATA_OPTIONS) {
+            if (!used.contains(option) && options.containsKey(option)) {
+                warn(where, "'" + option + "' was ignored, since this particle doesn't use it.");
+            }
+        }
     }
 
     private Object named(String where, Map<String, Object> options, String option,

@@ -3,6 +3,7 @@ package com.zachduda.animatedinventory;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
@@ -342,8 +343,14 @@ public class Main extends JavaPlugin implements Listener {
         if (Settings.slotSkipping) {
             final List < Integer > skipslot = getConfig().getIntegerList("features.clearing.skip-slots");
             if (skipslot.stream().anyMatch(slot -> slot >= 0 && slot <= 8)) {
-                getLogger().warning("WARNING: You're choosing to skip a slot between 1-8 (Hotbar)."
+                getLogger().warning("WARNING: You're choosing to skip a slot between 0-8 (Hotbar)."
                         + " These WONT be skipped because they are part of the animations.");
+            }
+            // Armor and the off-hand follow clear-armor instead, so these were silently ignored.
+            final List<Integer> outside = skipslot.stream().filter(slot -> slot < 0 || slot >= MAIN_SLOTS).toList();
+            if (!outside.isEmpty()) {
+                getLogger().warning("WARNING: skip-slots " + outside + " aren't inventory slots a clear empties"
+                        + " (0-35), so they do nothing. Armor and the off-hand follow clear-armor instead.");
             }
             if (skipslot.contains(Settings.TOKEN_SLOT)) {
                 getLogger().warning("WARNING: Slot " + Settings.TOKEN_SLOT
@@ -523,7 +530,7 @@ public class Main extends JavaPlugin implements Listener {
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 2.0F, 2.0F);
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true) // Makes sure to override any /clear or /ci commands
     public void onCommandPreProcess(PlayerCommandPreprocessEvent e) {
         if (!Settings.clearOverride || !Settings.clearEnabled) {
             return;
@@ -557,7 +564,7 @@ public class Main extends JavaPlugin implements Listener {
         return null;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickUp(EntityPickupItemEvent event) {
         if (!Settings.preventPickup || !(event.getEntity() instanceof Player p)) {
             return;
@@ -567,14 +574,14 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onWater(PlayerBucketEmptyEvent e) {
         if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInv(InventoryClickEvent e) {
         if (!Settings.preventMove || !(e.getWhoClicked() instanceof Player p)) {
             return;
@@ -584,20 +591,26 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerDropItem(PlayerDropItemEvent e) {
         if (Settings.preventDrop && Cooldowns.isBusy(e.getPlayer())) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler
+    /**
+     * Cancels the drops of anyone who dies during a fortune, and, with prevent-drop on, of
+     * anyone who dies mid-clear.
+     *
+     * A fortune holds the whole real inventory in memory and hands it back when it ends. This
+     * used to depend on prevent-drop too, so with it off, dying mid-fortune dropped the items in
+     * slots 9-35 and the armor, and then the fortune gave them all back: a duplication any
+     * player could do. Nothing is lost by cancelling them, since the fortune restores them.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerDeath(PlayerDeathEvent event) {
-        if (!Settings.preventDrop) {
-            return;
-        }
         final Player p = event.getEntity();
-        if (!Cooldowns.isBusy(p)) {
+        if (!Cooldowns.isFortune(p) && !(Settings.preventDrop && Cooldowns.isClearing(p))) {
             return;
         }
 
@@ -609,7 +622,7 @@ public class Main extends JavaPlugin implements Listener {
         Msgs.send(p, getConfig().getString("messages.death"));
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSlotChange(PlayerItemHeldEvent e) {
         if (Settings.preventSlotChange && Cooldowns.isBusy(e.getPlayer())) {
             e.setCancelled(true);
@@ -633,14 +646,14 @@ public class Main extends JavaPlugin implements Listener {
         Cooldowns.removeAll(player);
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerPlaceBlock(BlockPlaceEvent e) {
         if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
             e.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerBucketFill(PlayerBucketFillEvent e) {
         if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
             e.setCancelled(true);
@@ -681,7 +694,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private boolean oneArg(CommandSender sender, String sub) {
-        switch (sub.toLowerCase()) {
+        switch (sub.toLowerCase(Locale.ROOT)) {
             case "help" -> sendHelp(sender);
 
             case "version" -> {
@@ -779,7 +792,7 @@ public class Main extends JavaPlugin implements Listener {
                 }
                 Msgs.send(sender, Objects.requireNonNull(
                         getConfig().getString("messages.not-a-command")).replace("%cmd%", sub));
-                if (sub.toLowerCase().contains("undo")) {
+                if (sub.toLowerCase(Locale.ROOT).contains("undo")) {
                     Msgs.send(sender, getConfig().getString("messages.undo-suggestion"));
                 }
             }
@@ -973,7 +986,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        Cooldowns.markFortune(p);
+        // MC1_20.fortune marks them, once PlayerFortuneEvent has had its say.
         if (Settings.debug) {
             getLogger().info("[Debug] Self induced fortune: " + p.getName());
         }
@@ -1045,7 +1058,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private boolean twoArgs(CommandSender sender, String sub, String targetName) {
-        switch (sub.toLowerCase()) {
+        switch (sub.toLowerCase(Locale.ROOT)) {
             case "undoclear" -> undoClearOther(sender, targetName);
             case "clear" -> clearOther(sender, targetName, null);
             case "fortune" -> fortuneOther(sender, targetName);
@@ -1140,6 +1153,11 @@ public class Main extends JavaPlugin implements Listener {
                         + (loaded.isEmpty() ? "None are loaded." : "Try: &7" + loaded));
                 return;
             }
+        } else if (animations.enabled().isEmpty()) {
+            // Clear.go would only log this, after the sender had been told it worked.
+            fail(sender, "&c&lHm. &fNo clear animations are turned on. Name one to play it anyway, or set"
+                    + " 'enabled: true' in a file in the " + AnimationRegistry.FOLDER + " folder.");
+            return;
         }
 
         final Player target = resolveTarget(sender, name);
@@ -1151,7 +1169,7 @@ public class Main extends JavaPlugin implements Listener {
             levelup(p);
         }
         Msgs.send(sender, Objects.requireNonNull(
-                getConfig().getString("messages.clear-other-success")).replace("%player%", name));
+                getConfig().getString("messages.clear-other-success")).replace("%player%", target.getName()));
         Clear.go(target, animation);
     }
 
@@ -1169,11 +1187,9 @@ public class Main extends JavaPlugin implements Listener {
             levelup(p);
         }
         Msgs.send(sender, Objects.requireNonNull(
-                getConfig().getString("messages.fortune-other-success")).replace("%player%", name));
+                getConfig().getString("messages.fortune-other-success")).replace("%player%", target.getName()));
 
-        // Mark them busy before the animation starts, so anything the first frame
-        // triggers already sees the fortune as running.
-        Cooldowns.markFortune(target);
+        // MC1_20.fortune marks them busy before the first frame can run.
         try {
             MC1_20.fortune(target);
         } catch (Exception e) {
@@ -1182,7 +1198,9 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    @EventHandler
+    // MONITOR and ignoreCancelled: damage another plugin cancelled (ie: spawn protection)
+    // never landed, so it mustn't block a fortune.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent e) {
         if (!Settings.preventIfHurt || e.getCause() == DamageCause.FALL) {
             return;
@@ -1192,7 +1210,7 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onTP(PlayerTeleportEvent e) {
         if (!preventglitch) {
             return;

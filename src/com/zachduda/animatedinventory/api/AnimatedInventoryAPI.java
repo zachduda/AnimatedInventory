@@ -52,7 +52,8 @@ public final class AnimatedInventoryAPI {
 		if (dochecks && !abletoFortune(p, false)) {
 			return;
 		}
-		Cooldowns.markFortune(p);
+		// MC1_20.fortune marks the player itself, after PlayerFortuneEvent, and refuses a player
+		// who is already clearing or having a fortune even when dochecks is false.
 		try {
 			MC1_20.fortune(p);
 		} catch (Exception e) {

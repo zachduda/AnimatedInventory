@@ -9,7 +9,8 @@ inventory is cleared. Each clear picks one of the enabled ones at random.
  - To turn one off, set "enabled: false" in it. The animations that come
    with the plugin are put back if their file is deleted.
  - To make your own, copy one of the files to a new name, change it, then
-   run /ai reload. File names can use letters, numbers, - and _.
+   run /ai reload. File names can use letters, numbers, - and _, and have
+   to end in .yml (not .yaml).
  - To try one out: /ai clear <player> <animation>
 
 If a file has a mistake in it, the console says what and where, and that
@@ -50,8 +51,12 @@ To set more than the material:
     W:
       material: WHITE_STAINED_GLASS_PANE
       name: '&fWhoosh!'        Shown when the slot is selected.
-                               Default: no name at all
+                               Default: no name at all (so is name: '')
       lore: ['&7First line', '&7Second line']
+                               Or a block of text, one line per line:
+                                 lore: |
+                                   &7First line
+                                   &7Second line
       amount: 3                The number shown on the item, 1 to 64.
                                Default: 1
 
@@ -142,6 +147,9 @@ Everyone nearby can see them. Some particles need one more option:
   ENTITY_EFFECT, FLASH, ...    color: '#FF0000'
   BLOCK, FALLING_DUST, ...     block: STONE
   ITEM                         item: DIAMOND
+
+An option the particle doesn't use, like a color on BLOCK, is ignored, and
+the console points it out.
 
 A color can also be written as [255, 0, 0]. Keep the quotes around
 '#FF0000', since without them YAML ignores everything after the #.

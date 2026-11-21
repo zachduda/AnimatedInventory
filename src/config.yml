@@ -20,10 +20,9 @@ messages:
   backup-restored: '&6&lRestored. &fInventory from &7%time% &fago was restored.'
   backup-restored-other: '&6&lRestored. &7%player%''s &finventory from &7%time% &fago was restored.'
   backup-restored-target: '&6&lRestored. &fYour inventory from &7%time% &fago has been restored.'
-  backup-must-wait: '&c&lSlow Down. &fYou can''t do this while clearing.'
   backup-must-wait-clear: '&c&lWait. &fYou can''t do this while clearing.'
   backup-must-wait-fortune: '&c&lWait. &fYou can''t do this during a fortune.'
-  backup-error: '&4&lError. &fWe were not able to that at this time, sorry!'
+  backup-error: '&4&lError. &fWe were not able to do that at this time, sorry!'
   backup-no-file: '&c&lHm. &fWe don''t have a backup of your inventory.'
   backup-no-file-other: '&c&lHm. &fWe don''t have a backup of &7%player%''s &finventory.'
   backup-must-wait: '&c&lSlow Down! &fYou can only do that every &7%number%s'
@@ -74,6 +73,7 @@ features:
       enabled: true
       min: 10.0
     result:
+      # The percent chance of a yes, from 0 (never) to 100 (always).
       good-luck: 50
       -yes: '&f&lYour Fortune: &a&lYes'
       -no: '&f&lYour Fortune: &c&lNo'

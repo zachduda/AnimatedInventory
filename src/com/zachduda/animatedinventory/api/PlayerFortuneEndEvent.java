@@ -7,7 +7,7 @@ import org.bukkit.event.HandlerList;
 public class PlayerFortuneEndEvent extends Event {
 	
 	private final Player p;
-	private boolean result;
+	private final boolean result;
 
     public PlayerFortuneEndEvent(Player p, boolean result) {
         this.p = p;
@@ -29,18 +29,11 @@ public class PlayerFortuneEndEvent extends Event {
     }
     
     public boolean isYes() {
-    	if(result) {
-    	return true;
-    	}
-    	return false;
+        return result;
     }
-    	
-     public boolean isNo() {
-        if(!result) {
-        	return true;
-        } 
-        
-        return false;
+
+    public boolean isNo() {
+        return !result;
     }
 
 }

@@ -98,10 +98,14 @@ public class Clear {
 	 * The caller used to restore, then separately re-read the file to decide what
 	 * to tell the player and to stamp the use count. That meant a failed restore
 	 * still burned the player's one-time-use backup and still reported success.
-	 * Everything now happens here, and the use is only stamped once the items are
-	 * actually back in the inventory.
+	 * Everything now happens here.
+	 *
+	 * The backup is checked before anything changes: it used to clear() the
+	 * inventory and then call setContents(), so a backup too big for the
+	 * inventory wiped the player's current items before it threw. The use is
+	 * stamped next, so a disk that won't save it can't hand out a one-time
+	 * backup twice, and it's taken back if the restore itself fails.
 	 */
-	@SuppressWarnings("unchecked")
 	static UndoOutcome undoClear(Player p) {
 		if (!Settings.backupEnabled) {
 			return new UndoOutcome(UndoResult.DISABLED, 0L);
@@ -120,31 +124,62 @@ public class Clear {
 			return new UndoOutcome(UndoResult.ALREADY_USED, secondsAgo);
 		}
 
-		final Object stored = setcache.get("Inventory");
-		if (!(stored instanceof List)) {
+		final ItemStack[] backupinv = backupContents(setcache.get("Inventory"), p.getInventory().getSize());
+		if (backupinv == null) {
 			// A backup file can exist with no contents if an earlier save failed
-			// partway. Reading it blind used to throw straight out of the command.
-			plugin.getLogger().warning(p.getName() + "'s backup file has no inventory in it.");
+			// partway, or hold something that isn't an item if it was edited by hand.
+			// Reading it blind used to throw straight out of the command.
+			plugin.getLogger().warning(p.getName() + "'s backup file is empty or damaged, so it wasn't restored.");
 			return new UndoOutcome(UndoResult.ERROR, secondsAgo);
 		}
 
-		final ItemStack[] backupinv = ((List < ItemStack > ) stored).toArray(new ItemStack[0]);
+		final int uses = setcache.getInt("Uses", 0);
+		setcache.set("Uses", uses + 1);
+		try {
+			setcache.save(f);
+		} catch (Exception e) {
+			plugin.getLogger().warning("Couldn't update " + p.getName() + "'s backup file, so it wasn't restored.");
+			plugin.debugError(e);
+			return new UndoOutcome(UndoResult.ERROR, secondsAgo);
+		}
 
 		try {
-			p.getInventory().clear();
+			// setContents replaces every slot, armor and off-hand included.
 			p.getInventory().setContents(backupinv);
 			p.updateInventory();
-
-			setcache.set("Uses", setcache.getInt("Uses", 0) + 1);
-			setcache.save(f);
 		} catch (Exception e) {
 			plugin.getLogger().warning("Hm. We were unable to restore " + p.getName() + "'s backup.");
 			plugin.debugError(e);
+			setcache.set("Uses", uses);
+			try {
+				setcache.save(f);
+			} catch (Exception ignored) {
+				// Already reporting the failure; the backup is still on disk either way.
+			}
 			return new UndoOutcome(UndoResult.ERROR, secondsAgo);
 		}
 
 		Cooldowns.startFileCooldown(p);
 		return new UndoOutcome(UndoResult.RESTORED, secondsAgo);
+	}
+
+	/**
+	 * The stored inventory, or null if it's missing, holds anything but items and empty
+	 * slots, or has more slots than the inventory it's going back into.
+	 */
+	private static ItemStack[] backupContents(Object stored, int inventorySize) {
+		if (!(stored instanceof List<?> list) || list.size() > inventorySize) {
+			return null;
+		}
+		final ItemStack[] contents = new ItemStack[list.size()];
+		for (int i = 0; i < contents.length; i++) {
+			final Object slot = list.get(i);
+			if (slot != null && !(slot instanceof ItemStack)) {
+				return null;
+			}
+			contents[i] = (ItemStack) slot;
+		}
+		return contents;
 	}
 
 	static void backupInv(Player p) {
@@ -164,7 +199,9 @@ public class Clear {
 		}
 
 		final File f = cacheFile(p.getUniqueId());
-		final FileConfiguration setcache = YamlConfiguration.loadConfiguration(f);
+		// Every key is written fresh, so there's no need to read and parse the last
+		// backup (a whole serialized inventory) on the main thread first.
+		final FileConfiguration setcache = new YamlConfiguration();
 
 		setcache.set("Name", p.getName());
 		setcache.set("Inventory", p.getInventory().getContents());
@@ -193,6 +230,18 @@ public class Clear {
 	 *               plays even while it's turned off, so it can be tried out before it's enabled.
 	 */
 	static void go(Player p, ClearAnimation chosen) {
+		// Never start on top of another animation, even when the API skips its checks.
+		// Starting over a clear backed up its half-drawn hotbar in place of the real
+		// inventory, and starting over a fortune cancelled it with the player's items
+		// still stashed and the fortune flag left on for good.
+		if (Cooldowns.isBusy(p)) {
+			if (Settings.debug) {
+				plugin.getLogger().info("[Debug] Didn't clear " + p.getName()
+						+ "'s inventory: they're already clearing or having a fortune.");
+			}
+			return;
+		}
+
 		// The registry is only there once the plugin has enabled; the API can be called sooner.
 		final AnimationRegistry animations = plugin.getAnimations();
 		final ClearAnimation animation = chosen != null ? chosen : animations == null ? null : animations.pick();

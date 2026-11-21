@@ -6,6 +6,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -28,6 +31,8 @@ public class Updater {
 
     /** Don't nag about this tag; it was published without being a real upgrade. */
     private static final String SKIPPED_TAG = "7.8";
+
+    private static final Pattern VERSION_NUMBERS = Pattern.compile("^[vV]?(\\d+(?:\\.\\d+)*)");
 
     private static final int CONNECT_TIMEOUT_MS = 5_000;
     private static final int READ_TIMEOUT_MS = 10_000;
@@ -87,9 +92,9 @@ public class Updater {
                 return false;
             }
 
-            final String vs = ((String) tag).replace("v", "");
+            final String vs = ((String) tag).replaceFirst("^[vV]", "");
             // Only the newest stable release matters, so stop either way.
-            if (!localPluginVersion.equalsIgnoreCase(vs) && !vs.equalsIgnoreCase(SKIPPED_TAG)) {
+            if (isNewer(vs, localPluginVersion) && !vs.equalsIgnoreCase(SKIPPED_TAG)) {
                 postedver = vs;
                 outdated = true;
                 return true;
@@ -120,6 +125,43 @@ public class Updater {
             return reader.lines().collect(Collectors.joining());
         } finally {
             connection.disconnect();
+        }
+    }
+
+    /**
+     * Whether {@code latest} is a later version than {@code current}, comparing the numbers
+     * part by part ("8.10" is after "8.9", "8.1" is the same as "8.1.0").
+     *
+     * This used to be any difference at all, so a server running a build newer than the last
+     * release was told to "update" to the older one. Versions that don't start with a number
+     * still fall back to that.
+     */
+    static boolean isNewer(String latest, String current) {
+        final int[] a = numbers(latest);
+        final int[] b = numbers(current);
+        if (a == null || b == null) {
+            return !latest.trim().equalsIgnoreCase(current.trim());
+        }
+        for (int i = 0; i < Math.max(a.length, b.length); i++) {
+            final int x = i < a.length ? a[i] : 0;
+            final int y = i < b.length ? b[i] : 0;
+            if (x != y) {
+                return x > y;
+            }
+        }
+        return false;
+    }
+
+    /** "v8.0.1-SNAPSHOT" as {8, 0, 1}, or null when it doesn't start with a number. */
+    private static int[] numbers(String version) {
+        final Matcher matcher = VERSION_NUMBERS.matcher(version.trim());
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Arrays.stream(matcher.group(1).split("\\.")).mapToInt(Integer::parseInt).toArray();
+        } catch (NumberFormatException tooLong) {
+            return null;
         }
     }
 

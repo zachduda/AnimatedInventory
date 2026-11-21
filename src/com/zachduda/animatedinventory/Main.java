@@ -1,13 +1,16 @@
 package com.zachduda.animatedinventory;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.bstats.bukkit.Metrics;
 import org.bukkit.Bukkit;
@@ -15,6 +18,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -37,6 +41,9 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import com.zachduda.animatedinventory.animation.AnimationRegistry;
+import com.zachduda.animatedinventory.animation.BukkitLookup;
+import com.zachduda.animatedinventory.animation.ClearAnimation;
 import com.zachduda.animatedinventory.other.Updater;
 import com.zachduda.animatedinventory.api.AnimatedInventoryAPI;
 
@@ -50,12 +57,18 @@ public class Main extends JavaPlugin implements Listener {
     /** Slots a player can actually carry: the 36 main inventory slots. */
     private static final int MAIN_SLOTS = 36;
 
+    /** Where each clear animation's on/off switch lived before they moved to the Animations folder. */
+    private static final String LEGACY_ANIMATIONS = "features.clearing.animations";
+
     public AnimatedInventoryAPI api;
 
     private boolean preventglitch = true;
     private String canceltpmsg = "&c&lSorry. &fYou can't do that while clearing or having a fortune.";
 
     private Metrics metrics;
+
+    private AnimationRegistry animations;
+    private boolean warnedAboutProtocolPlugins;
 
     private int mcMajorVersion;
     private int mcMinorVersion;
@@ -89,6 +102,10 @@ public class Main extends JavaPlugin implements Listener {
 
     public boolean isSupported() {
         return supported;
+    }
+
+    AnimationRegistry getAnimations() {
+        return animations;
     }
 
     public boolean isClearEnabled() {
@@ -143,6 +160,8 @@ public class Main extends JavaPlugin implements Listener {
 
         upgradeConfig();
         reloadSettings();
+        animations = new AnimationRegistry(getDataFolder(), getLogger(), this::getResource, new BukkitLookup());
+        reloadAnimations();
         configChecks();
 
         Clear.purgeCache();
@@ -202,7 +221,7 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     /** Prints a stack trace only when debug mode is on. */
-    void debugError(Exception e) {
+    void debugError(Throwable e) {
         if (Settings.debug) {
             getLogger().info("[Debug] Error below: ------------------------------");
             e.printStackTrace();
@@ -254,16 +273,43 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
+    /**
+     * Rereads the Animations folder.
+     *
+     * The clear animations used to be switched on and off under features.clearing.animations
+     * in config.yml. The first time the built-in animation files are written, each one starts
+     * turned off if its old switch was, and then the old section is dropped from config.yml.
+     */
+    void reloadAnimations() {
+        final ConfigurationSection legacy = getConfig().getConfigurationSection(LEGACY_ANIMATIONS);
+        final Map<String, Boolean> toggles = new HashMap<>();
+        if (legacy != null) {
+            for (String key : legacy.getKeys(false)) {
+                toggles.put(key, legacy.isBoolean(key) ? legacy.getBoolean(key)
+                        : legacy.getBoolean(key + ".enabled", true));
+            }
+        }
+
+        MC1_20.forgetBrokenEffects();
+        if (animations.reload(toggles) && legacy != null) {
+            getConfig().set(LEGACY_ANIMATIONS, null);
+            saveConfig();
+            getLogger().info("The clear animations have moved out of config.yml and into the "
+                    + AnimationRegistry.FOLDER + " folder, one file each. Turn them on or off with 'enabled' in each file.");
+        }
+    }
+
     private void configChecks() {
         if (Settings.debug) {
             getLogger().info("[Debug] Running configChecks()");
         }
 
-        if (Settings.clearEnabled && noAnimationsEnabled()) {
-            getConfig().set("features.clearing.enabled", false);
-            saveConfig();
+        // Not saved to config.yml: once an animation is fixed or turned back on, /ai reload
+        // should be all it takes to clear again.
+        if (Settings.clearEnabled && animations.enabled().isEmpty()) {
             Settings.clearEnabled = false;
-            getLogger().info("All clear animations were turned off! Disabling Clearing...");
+            getLogger().warning("No clear animations are turned on, so clearing is off. Set 'enabled: true' in one of"
+                    + " the files in the " + AnimationRegistry.FOLDER + " folder, then run /ai reload.");
         }
 
         if (Settings.cooldownsEnabled && Settings.cooldownTime <= 0) {
@@ -279,17 +325,17 @@ public class Main extends JavaPlugin implements Listener {
                     + (Settings.clearOverride ? "enabled" : "disabled") + " in config.");
         }
 
-        // The key here was missing its ".enabled" suffix, so this guard never ran
-        // and the set() below would have replaced the whole animation section with
-        // a bare boolean if it ever had.
-        if (getConfig().getBoolean("features.clearing.animations.Explode_Animation.enabled")) {
+        // This used to switch the explosion animation off in config.yml. Its file is
+        // the one place that says whether it plays now, so only point at it - once.
+        final ClearAnimation explosion = animations.get("explosion");
+        if (!warnedAboutProtocolPlugins && explosion != null && explosion.enabled()) {
             final String clash = getServer().getPluginManager().isPluginEnabled("ViaVersion") ? "ViaVersion"
                     : getServer().getPluginManager().isPluginEnabled("ProtocolSupport") ? "ProtocolSupport" : null;
             if (clash != null) {
-                getLogger().info("HEADS UP: The TNT Animation has a known bug with " + clash
-                        + ". We've disabled this animation for you.");
-                getConfig().set("features.clearing.animations.Explode_Animation.enabled", false);
-                saveConfig();
+                warnedAboutProtocolPlugins = true;
+                getLogger().info("HEADS UP: The explosion animation has had a known bug with " + clash
+                        + ". If your players run into it, set 'enabled: false' in "
+                        + AnimationRegistry.FOLDER + "/explosion.yml.");
             }
         }
 
@@ -304,16 +350,6 @@ public class Main extends JavaPlugin implements Listener {
                         + ". This is where the AnimatedInventory token is, and WONT be skipped.");
             }
         }
-    }
-
-    private boolean noAnimationsEnabled() {
-        for (String name : new String[] {"Pane_Animation", "Rainbow_Animation", "Water_Animation",
-                "Explode_Animation", "Fireball_Animation"}) {
-            if (getConfig().getBoolean("features.clearing.animations." + name + ".enabled")) {
-                return false;
-            }
-        }
-        return true;
     }
 
     void noPermission(CommandSender sender) {
@@ -375,7 +411,7 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    void errorMsg(Player p, int v, Exception e) {
+    void errorMsg(Player p, String what, Throwable e) {
         if (Settings.debug) {
             getLogger().info("----------------------[ERROR]----------------------");
             getLogger().info("Below is the error that occured:");
@@ -383,16 +419,20 @@ public class Main extends JavaPlugin implements Listener {
             getLogger().info("Event was returned as: " + e.getMessage());
             getLogger().info("--------------------[ERROR END]--------------------");
         }
-        getLogger().warning("Error! Couldn't play Animation #" + v + " to player: " + p.getName());
+        getLogger().warning("Error! Couldn't play the " + what + " to player: " + p.getName());
         p.sendMessage("§c§lError. §fSomething went wrong here. §7Sorry!");
         bass(p);
     }
 
     /** Called when an animation frame throws; the timeline is already stopped. */
-    void frameError(Player p, Exception e) {
-        Cooldowns.unmarkClearing(p.getUniqueId());
+    void frameError(Player p, String what, Throwable e) {
+        if (Cooldowns.unmarkClearing(p.getUniqueId())) {
+            // The animation has already drawn over the hotbar, so finish the clear the
+            // player asked for instead of leaving them holding its items.
+            wipeInventory(p);
+        }
         abortFortune(p);
-        errorMsg(p, 0, e);
+        errorMsg(p, what, e);
     }
 
     /**
@@ -412,17 +452,25 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     /**
-     * Wipes the inventory once the animation has finished playing.
+     * Ends a clear once its animation has finished playing.
+     *
+     * @param message shown instead of done-msg, or null for done-msg
+     */
+    void finishClear(Player p, String message) {
+        wipeInventory(p);
+        Cooldowns.removeActive(p);
+        Msgs.sendBar(p, message != null ? message : getConfig().getString("features.clearing.done-msg"));
+    }
+
+    /**
+     * Empties everything a clear empties.
      *
      * The animation writes its frames into the hotbar and parks a marker item in
      * slot 22, so those slots always have to be emptied even when the player has
      * configured them as skipped - otherwise the leftover pane or marker stays in
      * their inventory for good.
      */
-    void finishClear(Player p) {
-        doneding(p);
-        burp(p);
-
+    private void wipeInventory(Player p) {
         // Slots 0-8 carry the animation and TOKEN_SLOT the marker, so Settings
         // .isSkipped() forces those clear whatever skip-slots asks for. The
         // off-hand follows clear-armor: a shield is gear in the same sense armor
@@ -449,29 +497,14 @@ public class Main extends JavaPlugin implements Listener {
                 p.getInventory().setItem(i, null);
             }
         }
-
-        Cooldowns.removeActive(p);
-        Msgs.sendBar(p, getConfig().getString("features.clearing.done-msg"));
     }
 
     void bass(Player sender) {
         sender.playSound(sender.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 5.0F, 1.3F);
     }
 
-    void despsound(Player sender) {
-        sender.playSound(sender.getLocation(), Sound.BLOCK_DISPENSER_LAUNCH, 5.0F, 0.4F);
-    }
-
-    void fireballshootsound(Player sender) {
-        sender.playSound(sender.getLocation(), Sound.ENTITY_GHAST_SHOOT, 5.0F, 0.1F);
-    }
-
     void tick(Player p) {
         p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 5.0F, 2.0F);
-    }
-
-    void doneding(Player p) {
-        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0F, 2.0F);
     }
 
     void clearingsound(Player p) {
@@ -488,26 +521,6 @@ public class Main extends JavaPlugin implements Listener {
 
     void levelup(Player p) {
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 2.0F, 2.0F);
-    }
-
-    void tntmovesound(Player p) {
-        p.playSound(p.getLocation(), Sound.ENTITY_MINECART_INSIDE, 1.0F, 1.4F);
-    }
-
-    void tntmovesoundstop(Player p) {
-        p.stopSound(Sound.ENTITY_MINECART_INSIDE);
-    }
-
-    void tntplacesound(Player p) {
-        p.playSound(p.getLocation(), Sound.BLOCK_GRASS_PLACE, 2.0F, 2.0F);
-    }
-
-    void boomsound(Player p) {
-        p.playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0F, 2.0F);
-    }
-
-    void waterAmb(Player p) {
-        p.playSound(p.getLocation(), Sound.BLOCK_WATER_AMBIENT, 5.0F, 1.0F);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST) // Make's sure to override any /clear or /ci commands
@@ -655,6 +668,11 @@ public class Main extends JavaPlugin implements Listener {
             return twoArgs(sender, args[0], args[1]);
         }
 
+        if (args.length == 3 && args[0].equalsIgnoreCase("clear")) {
+            clearOther(sender, args[1], args[2]);
+            return true;
+        }
+
         if (sender instanceof Player p) {
             bass(p);
         }
@@ -735,8 +753,13 @@ public class Main extends JavaPlugin implements Listener {
                 }
                 reloadConfig();
                 reloadSettings();
+                reloadAnimations();
                 configChecks();
                 Msgs.send(sender, getConfig().getString("messages.reload"));
+                if (animations.problems() > 0) {
+                    Msgs.send(sender, "&e&lHeads up! &f" + animations.problems() + " animation file"
+                            + (animations.problems() == 1 ? "" : "s") + " couldn't be loaded. The console says what to fix.");
+                }
                 if (Settings.debug) {
                     getLogger().info("[Debug] Disabled Clear Worlds: " + Settings.disabledClearWorlds);
                     getLogger().info("[Debug] Disabled Fortune Worlds: " + Settings.disabledFortuneWorlds);
@@ -769,7 +792,7 @@ public class Main extends JavaPlugin implements Listener {
         sender.sendMessage("§8§m------------§r §b§lA§r§bnimated §f§lI§r§fnventory §8§m------------");
         sender.sendMessage("§7/ai help §f- Shows this amazing help menu.");
         if (Settings.clearEnabled) {
-            sender.sendMessage(others ? "§7/ai clear (player) §f- Shows an animation to clear inventories."
+            sender.sendMessage(others ? "§7/ai clear (player) (animation) §f- Shows an animation to clear inventories."
                     : "§7/ai clear §f- Shows an animation to clear your inventory.");
         } else {
             sender.sendMessage("§c/ai clear §f- Command has been disabled.");
@@ -815,7 +838,8 @@ public class Main extends JavaPlugin implements Listener {
         }
 
         if (!Settings.clearEnabled) {
-            Msgs.send(sender, "&c&lError! &fCouldn't re-enable clearing, are all clearing animations set to false?");
+            Msgs.send(sender, "&c&lError! &fCouldn't re-enable clearing. Are all the animations in the "
+                    + AnimationRegistry.FOLDER + " folder turned off?");
             if (sender instanceof Player p) {
                 bass(p);
             }
@@ -957,7 +981,7 @@ public class Main extends JavaPlugin implements Listener {
             MC1_20.fortune(p);
         } catch (Exception e) {
             abortFortune(p);
-            errorMsg(p, 10, e);
+            errorMsg(p, "fortune animation", e);
         }
     }
 
@@ -1023,7 +1047,7 @@ public class Main extends JavaPlugin implements Listener {
     private boolean twoArgs(CommandSender sender, String sub, String targetName) {
         switch (sub.toLowerCase()) {
             case "undoclear" -> undoClearOther(sender, targetName);
-            case "clear" -> clearOther(sender, targetName);
+            case "clear" -> clearOther(sender, targetName, null);
             case "fortune" -> fortuneOther(sender, targetName);
             default -> {
                 if (sender instanceof Player p) {
@@ -1100,9 +1124,22 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    private void clearOther(CommandSender sender, String name) {
+    /** @param animationName the animation to play, or null for a random one */
+    private void clearOther(CommandSender sender, String name, String animationName) {
         if (denied(sender, "animatedinv.clear.others")) {
             return;
+        }
+
+        ClearAnimation animation = null;
+        if (animationName != null) {
+            animation = animations.get(animationName);
+            if (animation == null) {
+                final String loaded = animations.all().stream().map(ClearAnimation::name)
+                        .collect(Collectors.joining(", "));
+                fail(sender, "&c&lHm. &fThere's no animation called &7" + animationName + "&f. "
+                        + (loaded.isEmpty() ? "None are loaded." : "Try: &7" + loaded));
+                return;
+            }
         }
 
         final Player target = resolveTarget(sender, name);
@@ -1115,7 +1152,7 @@ public class Main extends JavaPlugin implements Listener {
         }
         Msgs.send(sender, Objects.requireNonNull(
                 getConfig().getString("messages.clear-other-success")).replace("%player%", name));
-        Clear.go(target);
+        Clear.go(target, animation);
     }
 
     private void fortuneOther(CommandSender sender, String name) {
@@ -1141,7 +1178,7 @@ public class Main extends JavaPlugin implements Listener {
             MC1_20.fortune(target);
         } catch (Exception e) {
             abortFortune(target);
-            errorMsg(target, 10, e);
+            errorMsg(target, "fortune animation", e);
         }
     }
 

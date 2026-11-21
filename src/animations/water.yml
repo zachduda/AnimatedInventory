@@ -1,0 +1,120 @@
+# Water: a bucket fills up and floods the hotbar, which then drains away.
+#
+# Each clear plays one of the enabled animations in this folder, picked at
+# random. Copy this file to make your own, then run /ai reload.
+# Every option is explained in README.txt, in this folder.
+
+# Set to false to stop this animation from playing.
+enabled: true
+
+# How often it's picked, compared to the other animations' weights.
+weight: 1
+
+# The items this animation draws with. Each one gets a symbol (a letter or a
+# digit) that the frames below use to place it. Here 1, 2 and 3 are how deep
+# the water is.
+items:
+  E: BUCKET
+  W: WATER_BUCKET
+  1: LIGHT_BLUE_STAINED_GLASS_PANE
+  2: CYAN_STAINED_GLASS_PANE
+  3: BLUE_STAINED_GLASS_PANE
+
+# Each frame waits 'delay' ticks after the one before it (20 ticks = 1 second).
+# 'hotbar' is what's in the 9 hotbar slots, from left to right:
+#   a symbol   puts that item in the slot
+#   .          leaves the slot as it is (at first, the player's own item)
+#   _          empties the slot
+# 'hold' selects a slot (0 to 8, from the left), unless slot-switching is off
+# in config.yml.
+frames:
+  # An empty bucket appears in the middle...
+  - delay: 0
+    hotbar: '....E....'
+    hold: 4
+    sounds:
+      - {sound: ITEM_ARMOR_EQUIP_GOLD, volume: 5.0, pitch: 0.1}
+      - {sound: ENTITY_CHICKEN_EGG, volume: 5.0, pitch: 0.1}
+
+  # ...and fills up.
+  - delay: 20
+    hotbar: '....W....'
+    sounds:
+      - {sound: ITEM_BUCKET_FILL, volume: 5.0, pitch: 1.4}
+
+  # The water floods outwards, getting deeper as it goes.
+  - delay: 4
+    hotbar: '...1W1...'
+    sounds:
+      - {sound: BLOCK_WATER_AMBIENT, volume: 5.0, pitch: 1.0}
+  - delay: 2
+    hotbar: '..11W11..'
+  - delay: 2
+    hotbar: '.111W111.'
+  - delay: 2
+    hotbar: '1111W1111'
+    sounds:
+      - {sound: BLOCK_WATER_AMBIENT, volume: 5.0, pitch: 1.0}
+  - delay: 2
+    hotbar: '1112W2111'
+  - delay: 2
+    hotbar: '1122W2211'
+  - delay: 2
+    hotbar: '1222W2221'
+  - delay: 2
+    hotbar: '2222W2222'
+    sounds:
+      - {sound: BLOCK_WATER_AMBIENT, volume: 5.0, pitch: 1.0}
+  - delay: 2
+    hotbar: '2223W3222'
+    action-bar: '%progress-msg%'
+  - delay: 2
+    hotbar: '2233W3322'
+  - delay: 2
+    hotbar: '2333W3332'
+  - delay: 2
+    hotbar: '3333W3333'
+
+  # The bucket empties...
+  - delay: 9
+    hotbar: '3333E3333'
+    sounds:
+      - {sound: BLOCK_WET_GRASS_PLACE, volume: 5.0, pitch: 0.4}
+
+  # ...and the water drains back out the same way.
+  - delay: 5
+    hotbar: '3332E2333'
+    action-bar: '%progress-msg%'
+  - delay: 2
+    hotbar: '3322E2233'
+  - delay: 2
+    hotbar: '3222E2223'
+  - delay: 2
+    hotbar: '2222E2222'
+  - delay: 4
+    hotbar: '2221E1222'
+  - delay: 2
+    hotbar: '2211E1122'
+  - delay: 2
+    hotbar: '2111E1112'
+  - delay: 2
+    hotbar: '1111E1111'
+  - delay: 1
+    hotbar: '111_E_111'
+  - delay: 1
+    hotbar: '11__E__11'
+  - delay: 1
+    hotbar: '1___E___1'
+  - delay: 1
+    hotbar: '____E____'
+  - delay: 5
+    particles:
+      - {particle: DRIPPING_WATER, count: 20, offset: [0.2, 0.2, 0.2], speed: 1}
+
+# The finish runs after the last frame. It clears the inventory, then shows
+# done-msg from config.yml.
+finish:
+  delay: 4
+  sounds:
+    - {sound: BLOCK_NOTE_BLOCK_CHIME, volume: 1.0, pitch: 2.0}
+    - {sound: ENTITY_PLAYER_BURP, volume: 1.0, pitch: 0.9}

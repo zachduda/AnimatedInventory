@@ -1,0 +1,75 @@
+# Fireball: a dispenser shoots a fire charge down the hotbar.
+#
+# Each clear plays one of the enabled animations in this folder, picked at
+# random. Copy this file to make your own, then run /ai reload.
+# Every option is explained in README.txt, in this folder.
+
+# Set to false to stop this animation from playing.
+enabled: true
+
+# How often it's picked, compared to the other animations' weights.
+weight: 1
+
+# The items this animation draws with. Each one gets a symbol (a letter or a
+# digit) that the frames below use to place it.
+items:
+  D: DISPENSER
+  F: FIRE_CHARGE
+
+# Each frame waits 'delay' ticks after the one before it (20 ticks = 1 second).
+# 'hotbar' is what's in the 9 hotbar slots, from left to right:
+#   a symbol   puts that item in the slot
+#   .          leaves the slot as it is (at first, the player's own item)
+#   _          empties the slot
+frames:
+  - delay: 0
+    hotbar: 'D........'
+    sounds:
+      - {sound: BLOCK_DISPENSER_LAUNCH, volume: 5.0, pitch: 0.4}
+
+  # Fire! The charge flies along the hotbar, burning up everything it passes.
+  - delay: 15
+    hotbar: 'DF.......'
+    sounds:
+      - {sound: ENTITY_GHAST_SHOOT, volume: 5.0, pitch: 0.1}
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D_F......'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D__F.....'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D___F....'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D____F...'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D_____F..'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+    action-bar: '%progress-msg%'
+  - delay: 2
+    hotbar: 'D______F.'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D_______F'
+    particles:
+      - {particle: FLAME, count: 3, offset: [0.4, 0.2, 0.4], speed: 0.1}
+  - delay: 2
+    hotbar: 'D________'
+
+# The finish runs after the last frame. It clears the inventory, then shows
+# done-msg from config.yml.
+finish:
+  delay: 9
+  sounds:
+    - {sound: BLOCK_NOTE_BLOCK_CHIME, volume: 1.0, pitch: 2.0}
+    - {sound: ENTITY_PLAYER_BURP, volume: 1.0, pitch: 0.9}

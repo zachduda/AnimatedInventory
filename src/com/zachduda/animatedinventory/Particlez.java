@@ -7,6 +7,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 
+/** The fortune's particles. Clear animations bring their own, from the Animations folder. */
 public class Particlez implements Listener {
     private static final Main plugin = Main.getPlugin(Main.class);
 
@@ -64,31 +65,8 @@ public class Particlez implements Listener {
         }
     }
 
-    static void explosionParticle(Player p) {
-        spawn(p, Particle.EXPLOSION, "EXPLOSION", 3, 0.4D, 0.2D, 0.4D);
-    }
-
-    static void colorParticle(Player p) {
-        spawn(p, Particle.WITCH, "WITCH", 50, 0.2D, 0.2D, 0.2D);
-    }
-
-    static void waterParticle(Player p) {
-        spawn(p, Particle.DRIPPING_WATER, "DRIPPING_WATER", 20, 0.2D, 0.2D, 0.2D);
-    }
-
     static void yesParticle(Player p) {
         spawn(p, Particle.HAPPY_VILLAGER, "HAPPY_VILLAGER", 50, 0.5D, 0.3D, 0.5D);
-    }
-
-    static void fireballParticle(Player p) {
-        if (!enabled()) {
-            return;
-        }
-        try {
-            p.getWorld().spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 3, 0.4D, 0.2D, 0.4D, 0.1D);
-        } catch (Exception e) {
-            pErr("FLAME");
-        }
     }
 
     static void noParticle(Player p) {

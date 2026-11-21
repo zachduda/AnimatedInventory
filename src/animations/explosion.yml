@@ -1,0 +1,72 @@
+# Explosion: a TNT minecart rolls along the hotbar, then blows it up.
+#
+# Each clear plays one of the enabled animations in this folder, picked at
+# random. Copy this file to make your own, then run /ai reload.
+# Every option is explained in README.txt, in this folder.
+
+# Set to false to stop this animation from playing.
+enabled: true
+
+# How often it's picked, compared to the other animations' weights.
+weight: 1
+
+# The items this animation draws with. Each one gets a symbol (a letter or a
+# digit) that the frames below use to place it.
+items:
+  M: TNT_MINECART
+  g: GUNPOWDER
+  T: TNT
+  x: ORANGE_STAINED_GLASS_PANE
+
+# Each frame waits 'delay' ticks after the one before it (20 ticks = 1 second).
+# 'hotbar' is what's in the 9 hotbar slots, from left to right:
+#   a symbol   puts that item in the slot
+#   .          leaves the slot as it is (at first, the player's own item)
+#   _          empties the slot
+frames:
+  - delay: 0
+    hotbar: 'M........'
+
+  # The cart rolls along, leaving a trail of gunpowder behind it...
+  - delay: 4
+    hotbar: 'gM.......'
+    sounds:
+      - {sound: ENTITY_MINECART_INSIDE, volume: 1.0, pitch: 1.4}
+  - delay: 4
+    hotbar: 'ggM......'
+  - delay: 4
+    hotbar: '_ggM.....'
+  - delay: 4
+    hotbar: '__ggM....'
+  - delay: 4
+    hotbar: '___gM....'
+
+  # ...stops, and turns into TNT...
+  - delay: 5
+    hotbar: '____T....'
+    stop-sounds: [ENTITY_MINECART_INSIDE]
+    sounds:
+      - {sound: BLOCK_GRASS_PLACE, volume: 2.0, pitch: 2.0}
+    action-bar: '%progress-msg%'
+
+  # ...which goes off, blasting outwards from the middle.
+  - delay: 10
+    hotbar: '___xTx...'
+    sounds:
+      - {sound: ENTITY_GENERIC_EXPLODE, volume: 1.0, pitch: 2.0}
+    particles:
+      - {particle: EXPLOSION, count: 3, offset: [0.4, 0.2, 0.4], speed: 1}
+  - delay: 1
+    hotbar: '__xxTxx..'
+  - delay: 1
+    hotbar: '_xxxTxxx.'
+  - delay: 1
+    hotbar: 'xxxxTxxxx'
+
+# The finish runs after the last frame. It clears the inventory, then shows
+# done-msg from config.yml.
+finish:
+  delay: 11
+  sounds:
+    - {sound: BLOCK_NOTE_BLOCK_CHIME, volume: 1.0, pitch: 2.0}
+    - {sound: ENTITY_PLAYER_BURP, volume: 1.0, pitch: 0.9}

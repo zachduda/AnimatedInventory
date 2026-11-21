@@ -7,6 +7,11 @@ AnimatedInventory helps to spice up your server with several animations to clear
 # Spigot
 Use AnimatedInventory for yourself at: https://zachduda.com/animatedinventory
 
+# Custom Animations
+Every clear animation has its own file in `plugins/AnimatedInventory/Animations/`. The plugin starts you off with `panes.yml`, `rainbow.yml`, `explosion.yml`, `water.yml` and `fireball.yml`. Each file sets the items drawn on the hotbar, every frame and how long to wait before it, and the sounds, particles and action bar text along the way.
+
+To make your own, copy one of them to a new name, change it, then run `/ai reload`. `/ai clear <player> <animation>` plays a specific one, so you can try it out. `README.txt` in the same folder explains every option.
+
 # Getting Started with the API
 
 ## Maven

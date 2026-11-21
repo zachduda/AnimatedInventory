@@ -37,15 +37,18 @@ final class Timeline {
 
     private final Main plugin;
     private final UUID id;
+    /** What's playing, for error messages. ie: "'explosion' clear animation" */
+    private final String what;
     private final List<Frame> frames = new ArrayList<>();
 
     private BukkitTask task;
     private int next;
     private long cursor;
 
-    Timeline(Main plugin, Player p) {
+    Timeline(Main plugin, Player p, String what) {
         this.plugin = plugin;
         this.id = p.getUniqueId();
+        this.what = what;
     }
 
     /** Queues an action to run {@code tick} ticks after the timeline starts. */
@@ -87,9 +90,11 @@ final class Timeline {
             while (next < frames.size() && frames.get(next).tick() == cursor) {
                 frames.get(next++).action().accept(p);
             }
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
+            // LinkageError too: a call this server version doesn't have would otherwise escape
+            // the scheduler with this timeline still registered, leaving the player stuck.
             release();
-            plugin.frameError(p, e);
+            plugin.frameError(p, what, e);
             return;
         }
 

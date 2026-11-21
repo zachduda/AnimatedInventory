@@ -1,10 +1,8 @@
 package com.zachduda.animatedinventory;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -13,6 +11,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import com.zachduda.animatedinventory.animation.AnimationRegistry;
+import com.zachduda.animatedinventory.animation.ClearAnimation;
 import com.zachduda.animatedinventory.api.PlayerClearInventoryEvent;
 
 public class Clear {
@@ -183,16 +183,22 @@ public class Clear {
 	}
 
 	public static void go(Player p) {
-		final List < Integer > animations = new ArrayList<>(5);
+		go(p, null);
+	}
 
-		addIf(animations, 1, "Pane_Animation");
-		addIf(animations, 2, "Rainbow_Animation");
-		addIf(animations, 3, "Explode_Animation");
-		addIf(animations, 4, "Water_Animation");
-		addIf(animations, 5, "Fireball_Animation");
-
-		if (animations.isEmpty()) {
-			plugin.getLogger().info("All animations were disabled in the config.yml. Aborting.");
+	/**
+	 * Clears an inventory with an animation.
+	 *
+	 * @param chosen the animation to play, or null for a random enabled one. A chosen animation
+	 *               plays even while it's turned off, so it can be tried out before it's enabled.
+	 */
+	static void go(Player p, ClearAnimation chosen) {
+		// The registry is only there once the plugin has enabled; the API can be called sooner.
+		final AnimationRegistry animations = plugin.getAnimations();
+		final ClearAnimation animation = chosen != null ? chosen : animations == null ? null : animations.pick();
+		if (animation == null) {
+			plugin.getLogger().info("No clear animations are turned on in the " + AnimationRegistry.FOLDER
+					+ " folder. Aborting.");
 			return;
 		}
 
@@ -210,34 +216,17 @@ public class Clear {
 		plugin.clearMessage(p);
 		backupInv(p);
 
-		final int pick = animations.get(ThreadLocalRandom.current().nextInt(animations.size()));
-
 		if (Settings.debug) {
-			plugin.getLogger().info("[Debug] Enabled Animations: " + animations);
-			plugin.getLogger().info("[Debug] Using random animation: " + pick);
+			plugin.getLogger().info("[Debug] Playing the '" + animation.name() + "' clear animation for "
+					+ p.getName() + (chosen != null ? " (picked by command)" : "") + ".");
 		}
 
 		try {
-			switch (pick) {
-				case 1 -> MC1_20.animation1(p);
-				case 2 -> MC1_20.animation2(p);
-				case 3 -> MC1_20.animation3(p);
-				case 4 -> MC1_20.animation4(p);
-				default -> MC1_20.animation5(p);
-			}
+			MC1_20.clear(p, animation);
 		} catch (Exception e) {
 			Cooldowns.unmarkClearing(p.getUniqueId());
 			Timeline.stop(p);
-			plugin.errorMsg(p, pick, e);
-		}
-	}
-
-	private static void addIf(List < Integer > animations, int id, String name) {
-		if (plugin.getConfig().getBoolean("features.clearing.animations." + name + ".enabled")) {
-			animations.add(id);
-			if (Settings.debug) {
-				plugin.getLogger().info("[Debug] Adding " + name + " (" + id + ") to Animations array.");
-			}
+			plugin.errorMsg(p, "'" + animation.name() + "' clear animation", e);
 		}
 	}
 }

@@ -61,18 +61,9 @@ features:
     # We sneak this item in the back just to test. Make sure it's unique and has some color codes.
     token: '&eInventory is being cleared.'
     token-item: 'MINECART'
-    
-    animations:
-      Pane_Animation:
-        enabled: true
-      Rainbow_Animation:
-        enabled: true
-      Water_Animation:
-        enabled: true  
-      Explode_Animation:
-        enabled: true
-      Fireball_Animation:
-        enabled: true
+
+    # The clear animations each have their own file in the Animations folder, next to
+    # this one. Edit them, turn them off, or add your own there. See README.txt in it.
     disabled-worlds:
     - none
   fortunes:

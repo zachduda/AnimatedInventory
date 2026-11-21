@@ -1,28 +1,36 @@
 package com.zachduda.animatedinventory;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import com.zachduda.animatedinventory.animation.AnimationParticle;
+import com.zachduda.animatedinventory.animation.AnimationSound;
+import com.zachduda.animatedinventory.animation.ClearAnimation;
+import com.zachduda.animatedinventory.animation.Frame;
 import com.zachduda.animatedinventory.api.PlayerFortuneEndEvent;
 import com.zachduda.animatedinventory.api.PlayerFortuneEvent;
 
 public class MC1_20 implements Listener {
     private static final Main plugin = Main.getPlugin(Main.class);
 
-    /** Shared empty stack. Inventory#setItem copies, so one instance is enough. */
-    private static final ItemStack AIR = new ItemStack(Material.AIR);
-
     /** Hotbar width. Every animation plays across these nine slots. */
-    private static final int HOTBAR = 9;
+    private static final int HOTBAR = Frame.HOTBAR_SIZE;
+
+    /** Sounds and particles that threw while playing, so they're skipped until the next reload. */
+    private static final Set<Object> BROKEN_EFFECTS = new HashSet<>();
 
     /** The ticks the fortune steps on while the hotbar spins. */
     private static final long[] SPIN_TICKS = {
@@ -38,10 +46,6 @@ public class MC1_20 implements Listener {
             item.setItemMeta(meta);
         }
         return item;
-    }
-
-    private static ItemStack blank(Material material) {
-        return named(material, "§a§e");
     }
 
     private static ItemStack fortuneItem(String path, Material material) {
@@ -172,7 +176,7 @@ public class MC1_20 implements Listener {
         final String doneMsg = ChatColor.translateAlternateColorCodes('&',
                 Objects.requireNonNull(plugin.getConfig().getString("features.fortunes.done-msg", "&a&lDone!")));
 
-        final Timeline timeline = new Timeline(plugin, p);
+        final Timeline timeline = new Timeline(plugin, p, "fortune animation");
 
         // The hotbar walks one slot per step and the message alternates shade, so
         // the whole spin comes off the tick table rather than forty copied blocks.
@@ -239,254 +243,113 @@ public class MC1_20 implements Listener {
         timeline.start();
     }
 
-    //_______________________________________________________ ANIMATION 1 (Panes)
-    public static void animation1(Player p) {
-        final ItemStack glass = blank(Material.WHITE_STAINED_GLASS_PANE);
+    /**
+     * Plays a clear animation from the Animations folder, then wipes the inventory.
+     *
+     * The items are built before anything in the inventory changes, so a problem building
+     * one can't leave the hotbar half-drawn.
+     */
+    static void clear(Player p, ClearAnimation animation) {
+        final Map<Character, ItemStack> items = new HashMap<>();
+        animation.items().forEach((symbol, item) -> items.put(symbol, item.build()));
 
         putTokenItem(p);
 
-        final Timeline timeline = new Timeline(plugin, p);
-
-        // Panes sweep in left to right, then back out right to left.
-        for (int i = 0; i < HOTBAR; i++) {
-            final int slot = i;
-            timeline.at(i, player -> {
-                player.getInventory().setItem(slot, glass);
-                hold(player, Math.min(slot + 1, HOTBAR - 1));
-                if (slot == 1 || slot == 4 || slot == 7) {
-                    plugin.clearingsound(player);
-                }
-            });
+        final Timeline timeline = new Timeline(plugin, p, "'" + animation.name() + "' clear animation");
+        long tick = 0;
+        for (Frame frame : animation.frames()) {
+            tick += frame.delay();
+            timeline.at(tick, player -> playFrame(player, animation, frame, items));
         }
 
-        for (int i = 0; i < HOTBAR; i++) {
-            final int slot = (HOTBAR - 1) - i;
-            final long tick = HOTBAR + i;
-            timeline.at(tick, player -> {
-                player.getInventory().setItem(slot, AIR);
-                if (slot >= 5) {
-                    hold(player, slot - 1);
-                }
-                if (slot == 8) {
-                    plugin.clearingsound(player);
-                }
-            });
-        }
-
-        timeline.at(17L, Particlez::colorParticle);
-        finishOn(timeline, 17L);
+        final Frame finish = animation.finish();
+        timeline.at(tick + finish.delay(), player -> {
+            stopSounds(player, animation, finish);
+            playEffects(player, animation, finish);
+            plugin.finishClear(player, finish.actionBar() == null ? null : fill(finish.actionBar(), player));
+        });
         timeline.start();
     }
 
-    //_______________________________________________________ ANIMATION 2 (Rainbow)
-    public static void animation2(Player p) {
-        final ItemStack red = blank(Material.RED_WOOL);
-        final ItemStack orange = blank(Material.ORANGE_WOOL);
-        final ItemStack yellow = blank(Material.YELLOW_WOOL);
-        final ItemStack green = blank(Material.GREEN_WOOL);
-        final ItemStack blue = blank(Material.BLUE_WOOL);
-        final ItemStack purple = blank(Material.PURPLE_WOOL);
+    private static void playFrame(Player p, ClearAnimation animation, Frame frame, Map<Character, ItemStack> items) {
+        stopSounds(p, animation, frame);
 
-        // Each frame is the previous one scrolled right by a slot.
-        final ItemStack[][] frames = {
-                {red, orange, yellow, green, blue, purple, red, orange, yellow},
-                {yellow, red, orange, yellow, green, blue, purple, red, orange},
-                {orange, yellow, red, orange, yellow, green, blue, purple, red}
-        };
-
-        putTokenItem(p);
-
-        final Timeline timeline = new Timeline(plugin, p);
-        for (int i = 0; i < frames.length; i++) {
-            final ItemStack[] frame = frames[i];
-            timeline.at(i * 10L, player -> {
-                plugin.clearingsound(player);
-                for (int slot = 0; slot < HOTBAR; slot++) {
-                    player.getInventory().setItem(slot, frame[slot]);
+        final String hotbar = frame.hotbar();
+        if (hotbar != null) {
+            final PlayerInventory inventory = p.getInventory();
+            for (int slot = 0; slot < HOTBAR; slot++) {
+                final char symbol = hotbar.charAt(slot);
+                if (symbol != Frame.KEEP) {
+                    inventory.setItem(slot, symbol == Frame.EMPTY ? null : items.get(symbol));
                 }
-            });
+            }
         }
 
-        timeline.at(35L, Particlez::colorParticle);
-        finishOn(timeline, 35L);
-        timeline.start();
-    }
-
-    //_______________________________________________________ ANIMATION 3 (TNT)
-    public static void animation3(Player p) {
-        final ItemStack powder = blank(Material.GUNPOWDER);
-        final ItemStack tntblock = blank(Material.TNT);
-        final ItemStack cart = blank(Material.TNT_MINECART);
-        final ItemStack glass = blank(Material.ORANGE_STAINED_GLASS_PANE);
-
-        putTokenItem(p);
-        p.getInventory().setItem(0, cart);
-
-        final Timeline timeline = new Timeline(plugin, p);
-
-        // The cart rolls along the hotbar leaving a gunpowder trail behind it.
-        timeline.at(4L, player -> {
-            player.getInventory().setItem(1, cart);
-            player.getInventory().setItem(0, powder);
-            plugin.tntmovesound(player);
-        });
-        timeline.at(8L, player -> {
-            player.getInventory().setItem(2, cart);
-            player.getInventory().setItem(1, powder);
-        });
-        timeline.at(12L, player -> {
-            player.getInventory().setItem(3, cart);
-            player.getInventory().setItem(2, powder);
-            player.getInventory().setItem(0, AIR);
-        });
-        timeline.at(16L, player -> {
-            player.getInventory().setItem(4, cart);
-            player.getInventory().setItem(3, powder);
-            player.getInventory().setItem(1, AIR);
-        });
-        timeline.at(20L, player -> player.getInventory().setItem(2, AIR));
-        timeline.at(25L, player -> {
-            player.getInventory().setItem(3, AIR);
-            player.getInventory().setItem(4, tntblock);
-            plugin.tntmovesoundstop(player);
-            plugin.tntplacesound(player);
-            Msgs.sendBar(player, plugin.getConfig().getString("features.clearing.progress-msg"));
-        });
-
-        // Then it detonates outwards from the middle.
-        for (int i = 0; i < 4; i++) {
-            final int left = 3 - i;
-            final int right = 5 + i;
-            final boolean first = i == 0;
-            timeline.at(35L + i, player -> {
-                player.getInventory().setItem(left, glass);
-                player.getInventory().setItem(right, glass);
-                if (first) {
-                    plugin.boomsound(player);
-                    Particlez.explosionParticle(player);
-                }
-            });
+        if (frame.hold() != Frame.NO_HOLD) {
+            hold(p, frame.hold());
         }
 
-        finishOn(timeline, 45L);
-        timeline.start();
+        playEffects(p, animation, frame);
+
+        if (frame.actionBar() != null) {
+            Msgs.sendBar(p, fill(frame.actionBar(), p));
+        }
     }
 
-    //_______________________________________________________ ANIMATION 4 (Water)
-    public static void animation4(Player p) {
-        final ItemStack deep = blank(Material.BLUE_STAINED_GLASS_PANE);
-        final ItemStack mid = blank(Material.CYAN_STAINED_GLASS_PANE);
-        final ItemStack shallow = blank(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
-        final ItemStack fullBucket = blank(Material.WATER_BUCKET);
-        final ItemStack emptyBucket = blank(Material.BUCKET);
+    /** Runs first in a frame, so a frame can cut off a sound and start a new one together. */
+    private static void stopSounds(Player p, ClearAnimation animation, Frame frame) {
+        for (AnimationSound sound : frame.stopSounds()) {
+            safely(animation, sound, () -> sound.stop(p));
+        }
+    }
 
-        putTokenItem(p);
+    private static void playEffects(Player p, ClearAnimation animation, Frame frame) {
+        for (AnimationSound sound : frame.sounds()) {
+            safely(animation, sound, () -> sound.play(p));
+        }
+        if (Settings.useParticles) {
+            for (AnimationParticle particle : frame.particles()) {
+                safely(animation, particle, () -> particle.spawn(p));
+            }
+        }
+    }
 
-        final Timeline timeline = new Timeline(plugin, p);
-
-        timeline.at(0L, player -> {
-            player.getInventory().setItem(4, emptyBucket);
-            hold(player, 4);
-            player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GOLD, 5.0f, 0.1f);
-            player.playSound(player.getLocation(), Sound.ENTITY_CHICKEN_EGG, 5.0f, 0.1f);
-        });
-        timeline.at(20L, player -> {
-            player.getInventory().setItem(4, fullBucket);
-            player.playSound(player.getLocation(), Sound.ITEM_BUCKET_FILL, 5.0f, 1.4f);
-        });
-
-        // Water floods outwards from the middle, deepening as it goes.
-        flood(timeline, 24L, 2L, shallow, 24L, 30L);
-        flood(timeline, 32L, 2L, mid, 38L, -1L);
-        flood(timeline, 40L, 2L, deep, -1L, -1L);
-
-        timeline.at(55L, player -> {
-            player.getInventory().setItem(4, emptyBucket);
-            player.playSound(player.getLocation(), Sound.BLOCK_WET_GRASS_PLACE, 5.0f, 0.4f);
-        });
-
-        // Then it drains back out the same way.
-        flood(timeline, 60L, 2L, mid, -1L, -1L);
-        flood(timeline, 70L, 2L, shallow, -1L, -1L);
-        flood(timeline, 77L, 1L, AIR, -1L, -1L);
-
-        timeline.at(40L, player -> Msgs.sendBar(player,
-                plugin.getConfig().getString("features.clearing.progress-msg")));
-        timeline.at(60L, player -> Msgs.sendBar(player,
-                plugin.getConfig().getString("features.clearing.progress-msg")));
-        timeline.at(85L, Particlez::waterParticle);
-
-        finishOn(timeline, 85L);
-        timeline.start();
+    private static String fill(String text, Player p) {
+        return text.replace("%player%", p.getName())
+                .replace("%progress-msg%", Objects.requireNonNullElse(
+                        plugin.getConfig().getString("features.clearing.progress-msg"), ""))
+                .replace("%done-msg%", Objects.requireNonNullElse(
+                        plugin.getConfig().getString("features.clearing.done-msg"), ""));
     }
 
     /**
-     * Fills the hotbar outwards from the middle pair, one step every
-     * {@code step} ticks, optionally playing the water ambience on two of them.
+     * Runs one sound or particle, dropping it for good if it throws.
+     *
+     * The files are checked when they load, but a server can still refuse something at play
+     * time. One broken effect shouldn't end the clear, or spam the console every frame.
      */
-    private static void flood(Timeline timeline, long start, long step, ItemStack item,
-                              long ambientA, long ambientB) {
-        for (int i = 0; i < 4; i++) {
-            final int left = 3 - i;
-            final int right = 5 + i;
-            final long tick = start + (i * step);
-            final boolean ambient = tick == ambientA || tick == ambientB;
-            timeline.at(tick, player -> {
-                player.getInventory().setItem(left, item);
-                player.getInventory().setItem(right, item);
-                if (ambient) {
-                    plugin.waterAmb(player);
-                }
-            });
+    private static void safely(ClearAnimation animation, Object effect, Runnable action) {
+        if (BROKEN_EFFECTS.contains(effect)) {
+            return;
+        }
+        try {
+            action.run();
+        } catch (RuntimeException | LinkageError e) {
+            BROKEN_EFFECTS.add(effect);
+            plugin.getLogger().warning("Couldn't play " + effect + " in Animations/" + animation.name()
+                    + ".yml, so it's been turned off until the next /ai reload: " + e);
+            plugin.debugError(e);
         }
     }
 
-    //_______________________________________________________ ANIMATION 5 (Fireball)
-    public static void animation5(Player p) {
-        final ItemStack dispenser = blank(Material.DISPENSER);
-        final ItemStack charge = blank(Material.FIRE_CHARGE);
-
-        putTokenItem(p);
-
-        p.getInventory().setItem(0, dispenser);
-        plugin.despsound(p);
-
-        final Timeline timeline = new Timeline(plugin, p);
-
-        // A single charge flies from the dispenser out along the hotbar.
-        for (int slot = 1; slot < HOTBAR; slot++) {
-            final int target = slot;
-            final long tick = 15L + ((slot - 1) * 2L);
-            timeline.at(tick, player -> {
-                if (target == 1) {
-                    plugin.fireballshootsound(player);
-                } else {
-                    player.getInventory().setItem(target - 1, AIR);
-                }
-                player.getInventory().setItem(target, charge);
-                Particlez.fireballParticle(player);
-                if (target == 6) {
-                    Msgs.sendBar(player, plugin.getConfig().getString("features.clearing.progress-msg"));
-                }
-            });
-        }
-
-        timeline.at(31L, player -> player.getInventory().setItem(8, AIR));
-        finishOn(timeline, 36L);
-        timeline.start();
+    /** Called on reload, so a fixed animation file gets its effects back. */
+    static void forgetBrokenEffects() {
+        BROKEN_EFFECTS.clear();
     }
 
     private static void hold(Player p, int slot) {
         if (Settings.slotSwitching) {
             p.getInventory().setHeldItemSlot(slot);
         }
-    }
-
-    /**
-     * Adds the wipe-and-announce step four ticks after the last visual frame,
-     * matching the delay the old cleardone() scheduled for itself.
-     */
-    private static void finishOn(Timeline timeline, long lastFrame) {
-        timeline.at(lastFrame + 4L, plugin::finishClear);
     }
 }

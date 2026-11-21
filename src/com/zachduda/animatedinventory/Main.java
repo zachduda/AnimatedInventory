@@ -623,17 +623,33 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickUp(EntityPickupItemEvent event) {
-        if (!Settings.preventPickup || !(event.getEntity() instanceof Player p)) {
-            return;
-        }
-        if (Cooldowns.isBusy(p)) {
+        if (event.getEntity() instanceof Player p && Cooldowns.isBusy(p) && (Settings.preventPickup || frozen(p))) {
             event.setCancelled(true);
         }
     }
 
+    /**
+     * Whether nothing at all may leave the player's inventory right now, whatever the prevent-
+     * settings say.
+     *
+     * True during a clear while inventory backups are on. The backup is taken as the clear
+     * starts, so an item that left the inventory before the wipe - dropped, put in a chest,
+     * swapped into an off-hand the clear keeps, placed, eaten or thrown - was in the world and in
+     * the backup at once, and /ai undoclear handed it out a second time. Picking things up is
+     * held off too: the backup doesn't have them, so the wipe would take them for good.
+     */
+    private static boolean frozen(Player p) {
+        return Settings.backupEnabled && Cooldowns.isClearing(p);
+    }
+
+    private static boolean holding(ItemStack item) {
+        return item != null && item.getType() != Material.AIR;
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onWater(PlayerBucketEmptyEvent e) {
-        if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (Settings.preventPlace || frozen(p))) {
             e.setCancelled(true);
         }
     }
@@ -647,7 +663,7 @@ public class Main extends JavaPlugin implements Listener {
         if (!(e.getWhoClicked() instanceof Player p) || !Cooldowns.isBusy(p)) {
             return;
         }
-        if (Settings.preventMove || movesAnimationItem(p, e)) {
+        if (Settings.preventMove || frozen(p) || movesAnimationItem(p, e)) {
             e.setCancelled(true);
         }
     }
@@ -664,7 +680,7 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDrag(InventoryDragEvent e) {
         if (e.getWhoClicked() instanceof Player p && Cooldowns.isBusy(p)
-                && (Settings.preventMove || MC1_20.isAnimationItem(p, e.getOldCursor()))) {
+                && (Settings.preventMove || frozen(p) || MC1_20.isAnimationItem(p, e.getOldCursor()))) {
             e.setCancelled(true);
         }
     }
@@ -676,7 +692,7 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSwapHands(PlayerSwapHandItemsEvent e) {
         final Player p = e.getPlayer();
-        if (Cooldowns.isBusy(p) && (Settings.preventMove || MC1_20.isAnimationItem(p, e.getMainHandItem())
+        if (Cooldowns.isBusy(p) && (Settings.preventMove || frozen(p) || MC1_20.isAnimationItem(p, e.getMainHandItem())
                 || MC1_20.isAnimationItem(p, e.getOffHandItem()))) {
             e.setCancelled(true);
         }
@@ -695,7 +711,8 @@ public class Main extends JavaPlugin implements Listener {
         final Player p = e.getPlayer();
         // Right-clicks only: a left-click or a pressure plate can't hand out the item.
         final boolean using = e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK;
-        if (using && Cooldowns.isBusy(p) && MC1_20.isAnimationItem(p, e.getItem())) {
+        if (using && Cooldowns.isBusy(p)
+                && (MC1_20.isAnimationItem(p, e.getItem()) || (frozen(p) && holding(e.getItem())))) {
             e.setCancelled(true);
         }
     }
@@ -709,7 +726,7 @@ public class Main extends JavaPlugin implements Listener {
         }
         final ItemStack used = e.getHand() == EquipmentSlot.OFF_HAND
                 ? p.getInventory().getItemInOffHand() : p.getInventory().getItemInMainHand();
-        if (MC1_20.isAnimationItem(p, used)) {
+        if (MC1_20.isAnimationItem(p, used) || (frozen(p) && holding(used))) {
             e.setCancelled(true);
         }
     }
@@ -718,7 +735,7 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onArmorStand(PlayerArmorStandManipulateEvent e) {
         final Player p = e.getPlayer();
-        if (Cooldowns.isBusy(p) && MC1_20.isAnimationItem(p, e.getPlayerItem())) {
+        if (Cooldowns.isBusy(p) && (frozen(p) || MC1_20.isAnimationItem(p, e.getPlayerItem()))) {
             e.setCancelled(true);
         }
     }
@@ -726,7 +743,7 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onConsume(PlayerItemConsumeEvent e) {
         final Player p = e.getPlayer();
-        if (Cooldowns.isBusy(p) && MC1_20.isAnimationItem(p, e.getItem())) {
+        if (Cooldowns.isBusy(p) && (frozen(p) || MC1_20.isAnimationItem(p, e.getItem()))) {
             e.setCancelled(true);
         }
     }
@@ -736,7 +753,7 @@ public class Main extends JavaPlugin implements Listener {
     public void onPlayerDropItem(PlayerDropItemEvent e) {
         final Player p = e.getPlayer();
         if (Cooldowns.isBusy(p)
-                && (Settings.preventDrop || MC1_20.isAnimationItem(p, e.getItemDrop().getItemStack()))) {
+                && (Settings.preventDrop || frozen(p) || MC1_20.isAnimationItem(p, e.getItemDrop().getItemStack()))) {
             e.setCancelled(true);
         }
     }
@@ -744,7 +761,8 @@ public class Main extends JavaPlugin implements Listener {
     /**
      * Someone died mid-animation.
      *
-     * With prevent-drop on, they keep their inventory, so the animation can finish with it: a
+     * With prevent-drop on, or during a clear while inventory backups are on (see frozen()),
+     * they keep their inventory, so the animation can finish with it: a
      * clear empties what it always empties, and a fortune puts the hotbar back. This used to
      * cancel the drops and let the inventory be emptied, destroying what a clear would have kept
      * (skipped slots, and armor with clear-armor off).
@@ -760,7 +778,7 @@ public class Main extends JavaPlugin implements Listener {
             return;
         }
 
-        if (Settings.preventDrop) {
+        if (Settings.preventDrop || frozen(p)) {
             event.setKeepInventory(true);
             event.getDrops().clear();
             getLogger().info(p.getName() + " died. Their drops were canceled!");
@@ -823,14 +841,15 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerPlaceBlock(BlockPlaceEvent e) {
         final Player p = e.getPlayer();
-        if (Cooldowns.isBusy(p) && (Settings.preventPlace || MC1_20.isAnimationItem(p, e.getItemInHand()))) {
+        if (Cooldowns.isBusy(p) && (Settings.preventPlace || frozen(p) || MC1_20.isAnimationItem(p, e.getItemInHand()))) {
             e.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerBucketFill(PlayerBucketFillEvent e) {
-        if (Settings.preventPlace && Cooldowns.isBusy(e.getPlayer())) {
+        final Player p = e.getPlayer();
+        if (Cooldowns.isBusy(p) && (Settings.preventPlace || frozen(p))) {
             e.setCancelled(true);
         }
     }

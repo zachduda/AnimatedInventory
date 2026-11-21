@@ -32,6 +32,8 @@ messages:
 features:
   # The prevention settings apply to both fortunes & clearing. They cover the player's
   # own items: the items an animation draws with can never be dropped, moved out, or used.
+  # While inv-backup is on, nothing can leave the inventory during a clear, whatever these
+  # say, since /ai undoclear would otherwise hand it back a second time.
   prevent-drop: true
   prevent-move: true
   prevent-place: true

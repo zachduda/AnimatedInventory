@@ -462,7 +462,7 @@ class AnimationParserEdgeCaseTest {
 
     /** Particles whose settings a file has no way to write are refused by name, not with a crash. */
     @ParameterizedTest
-    @ValueSource(strings = {"DUST_COLOR_TRANSITION", "VIBRATION", "SHRIEK", "SCULK_CHARGE"})
+    @ValueSource(strings = {"VIBRATION", "SHRIEK", "SCULK_CHARGE", "DRAGON_BREATH", "GEYSER", "GEYSER_BASE"})
     void particlesWhoseDataCantBeWrittenAreRefused(String particle) {
         assertProblem(frame("{particles: [" + particle + "]}").errors(), "needs settings that animation files can't set");
     }

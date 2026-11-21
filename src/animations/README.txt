@@ -141,12 +141,30 @@ https://hub.spigotmc.org/javadocs/spigot/org/bukkit/Sound.html
   speed    How fast they move. Default: 0
   height   Blocks above the player's feet. Default: 1
 
-Everyone nearby can see them. Some particles need one more option:
+Everyone nearby can see them. Some particles need more options:
 
   DUST                         color: '#FF0000'    and if you like, size: 2
+  DUST_COLOR_TRANSITION        color: '#FF0000', to-color: '#0000FF'
+                               and if you like, size: 2
   ENTITY_EFFECT, FLASH, ...    color: '#FF0000'
+  EFFECT, INSTANT_EFFECT       Nothing, but if you like:
+                                 color: '#FF0000'    Default: white
+                                 power: 2            0 to 10. Default: 1
+  TRAIL                        color: '#FF0000', target: [0, 2, 0]
+                               and if you like, duration: 40
+                                 target    Where the trail ends, in blocks
+                                           from where it starts, each
+                                           from -16 to 16.
+                                 duration  Ticks it takes, 1 to 1200.
+                                           Default: 20
   BLOCK, FALLING_DUST, ...     block: STONE
   ITEM                         item: DIAMOND
+
+A few particles, like VIBRATION and SHRIEK, need settings these files can't
+set. The console says so, and suggests one that looks alike.
+
+Some of these particles, and their options, only exist on newer servers. On
+an older one, the console says which option was ignored or what to change.
 
 An option the particle doesn't use, like a color on BLOCK, is ignored, and
 the console points it out.

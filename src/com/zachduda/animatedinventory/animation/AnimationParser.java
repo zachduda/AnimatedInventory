@@ -1,5 +1,6 @@
 package com.zachduda.animatedinventory.animation;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -12,6 +13,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 
 import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.block.data.BlockData;
@@ -41,9 +43,22 @@ public final class AnimationParser {
     private static final List<String> ITEM_OPTIONS = List.of("material", "name", "lore", "amount");
     private static final List<String> SOUND_OPTIONS = List.of("sound", "volume", "pitch");
     private static final List<String> STOP_SOUND_OPTIONS = List.of("sound");
-    private static final List<String> PARTICLE_OPTIONS =
-            List.of("particle", "count", "offset", "speed", "height", "color", "size", "block", "item");
-    private static final List<String> PARTICLE_DATA_OPTIONS = List.of("color", "size", "block", "item");
+    private static final List<String> PARTICLE_OPTIONS = List.of("particle", "count", "offset", "speed", "height",
+            "color", "to-color", "size", "power", "target", "duration", "block", "item");
+    private static final List<String> PARTICLE_DATA_OPTIONS =
+            List.of("color", "to-color", "size", "power", "target", "duration", "block", "item");
+
+    /**
+     * For the particles whose settings a file can't write, one that looks alike and can be used.
+     * The tests check each of these is a particle that animation files can set up.
+     */
+    static final Map<String, String> ALTERNATIVES = Map.of(
+            "SCULK_CHARGE", "SCULK_CHARGE_POP",
+            "SHRIEK", "SONIC_BOOM",
+            "VIBRATION", "TRAIL",
+            "DRAGON_BREATH", "WITCH");
+
+    private static final int DEFAULT_TRAIL_DURATION = 20;
 
     /** Splits lore text into lines. Trailing breaks, like the one a "lore: |" block ends with, are dropped. */
     private static final Pattern LINE_BREAK = Pattern.compile("\\r?\\n");
@@ -364,7 +379,7 @@ public final class AnimationParser {
         final double[] offset = offset(at, options.get("offset"));
         final double speed = number(at, options, "speed", 0, 0, 100);
         final double height = number(at, options, "height", 1, -16, 16);
-        final Object data = particleData(at, particle, options);
+        final Object data = particleData(at, name, particle, options);
         return new AnimationParticle(name, particle, count, offset[0], offset[1], offset[2], speed, height, data);
     }
 
@@ -387,7 +402,7 @@ public final class AnimationParser {
     }
 
     /** The extra data a particle needs, or null when it needs none (or it couldn't be read). */
-    private Object particleData(String where, Particle particle, Map<String, Object> options) {
+    private Object particleData(String where, String name, Particle particle, Map<String, Object> options) {
         final Class<?> type = particle.getDataType();
         if (type == null || type == Void.class) {
             ignoreDataOptions(where, options, List.of());
@@ -395,13 +410,13 @@ public final class AnimationParser {
         }
         if (type == Particle.DustOptions.class) {
             ignoreDataOptions(where, options, List.of("color", "size"));
-            final Color color = color(where, options.get("color"));
+            final Color color = color(where, options, "color");
             final double size = number(where, options, "size", 1, 0.01, 4);
             return color == null ? null : new Particle.DustOptions(color, (float) size);
         }
         if (type == Color.class) {
             ignoreDataOptions(where, options, List.of("color"));
-            return color(where, options.get("color"));
+            return color(where, options, "color");
         }
         if (BlockData.class.isAssignableFrom(type)) {
             ignoreDataOptions(where, options, List.of("block"));
@@ -411,8 +426,103 @@ public final class AnimationParser {
             ignoreDataOptions(where, options, List.of("item"));
             return named(where, options, "item", lookup::itemData, "an item");
         }
-        error(where, "This particle needs settings that animation files can't set, so pick a different one.");
+        switch (type.getName()) {
+            case ParticleData.SPELL -> {
+                return spell(where, type, options);
+            }
+            case ParticleData.DUST_TRANSITION -> {
+                return dustTransition(where, type, options);
+            }
+            case ParticleData.TRAIL -> {
+                return trail(where, type, options);
+            }
+            default -> {
+                final String alternative = ALTERNATIVES.get(BukkitLookup.particleConstant(name));
+                error(where, "This particle needs settings that animation files can't set, so pick a different one"
+                        + (alternative == null ? "." : ", like " + alternative + "."));
+                return null;
+            }
+        }
+    }
+
+    /**
+     * EFFECT and INSTANT_EFFECT. Both took no settings on older servers, so neither one is
+     * required here: a file written for one of those still loads, looking as it did.
+     */
+    private Object spell(String where, Class<?> type, Map<String, Object> options) {
+        ignoreDataOptions(where, options, List.of("color", "power"));
+        final Color color = options.get("color") == null ? Color.WHITE : color(where, options, "color");
+        final double power = number(where, options, "power", 1, 0, 10);
+        return color == null ? null : build(where, type, new Class<?>[] {Color.class, float.class}, color, (float) power);
+    }
+
+    private Object dustTransition(String where, Class<?> type, Map<String, Object> options) {
+        ignoreDataOptions(where, options, List.of("color", "to-color", "size"));
+        final Color from = color(where, options, "color");
+        final Color to = color(where, options, "to-color");
+        final double size = number(where, options, "size", 1, 0.01, 4);
+        return from == null || to == null ? null
+                : build(where, type, new Class<?>[] {Color.class, Color.class, float.class}, from, to, (float) size);
+    }
+
+    private Object trail(String where, Class<?> type, Map<String, Object> options) {
+        ignoreDataOptions(where, options, List.of("color", "target", "duration"));
+        final Color color = color(where, options, "color");
+        final double[] target = target(where, options.get("target"));
+        final int duration = whole(where, options, "duration", DEFAULT_TRAIL_DURATION, 1, MAX_TICKS);
+        final Constructor<?> constructor = ParticleData.constructor(type, Location.class, Color.class, int.class);
+        if (constructor == null) {
+            error(where, "This server's version of this particle takes settings animation files can't set,"
+                    + " so pick a different one.");
+            return null;
+        }
+        if (color == null || target == null) {
+            return null;
+        }
+        final ParticleData.Trail trail = new ParticleData.Trail(constructor, color, target[0], target[1], target[2],
+                duration);
+        try {
+            // Built once now, so a value the server refuses is reported here instead of mid-clear.
+            trail.at(new Location(null, 0, 0, 0));
+        } catch (RuntimeException refused) {
+            error(where, "This server refused this particle's settings: " + refused.getMessage());
+            return null;
+        }
+        return trail;
+    }
+
+    /** A trail's end point, in blocks from where the particle appears. */
+    private double[] target(String where, Object node) {
+        if (node == null) {
+            error(where, "This particle needs a 'target', where it ends in blocks from where it starts, like:"
+                    + "  target: [0, 2, 0]");
+            return null;
+        }
+        if (node instanceof List<?> axes && axes.size() == 3
+                && axes.stream().allMatch(axis -> axis instanceof Number n && inRange(n.doubleValue(), -16, 16))) {
+            return new double[] {
+                    ((Number) axes.get(0)).doubleValue(),
+                    ((Number) axes.get(1)).doubleValue(),
+                    ((Number) axes.get(2)).doubleValue()};
+        }
+        error(where, "'target' must be three numbers like [0, 2, 0], each from -16 to 16.");
         return null;
+    }
+
+    /** Builds a particle's settings, reporting a server whose version can't take these ones. */
+    private Object build(String where, Class<?> type, Class<?>[] parameters, Object... arguments) {
+        final Constructor<?> constructor = ParticleData.constructor(type, parameters);
+        if (constructor == null) {
+            error(where, "This server's version of this particle takes settings animation files can't set,"
+                    + " so pick a different one.");
+            return null;
+        }
+        try {
+            return ParticleData.create(constructor, arguments);
+        } catch (RuntimeException refused) {
+            error(where, "This server refused this particle's settings: " + refused.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -440,7 +550,8 @@ public final class AnimationParser {
         return data;
     }
 
-    private Color color(String where, Object node) {
+    private Color color(String where, Map<String, Object> options, String key) {
+        final Object node = options.get(key);
         if (node instanceof String text) {
             final String hex = text.trim().startsWith("#") ? text.trim().substring(1) : text.trim();
             if (hex.matches("[0-9a-fA-F]{6}")) {
@@ -451,7 +562,7 @@ public final class AnimationParser {
             return Color.fromRGB(((Number) rgb.get(0)).intValue(), ((Number) rgb.get(1)).intValue(),
                     ((Number) rgb.get(2)).intValue());
         }
-        error(where, (node == null ? "This particle needs a 'color'" : "'color' isn't a color")
+        error(where, (node == null ? "This particle needs a '" + key + "'" : "'" + key + "' isn't a color")
                 + ". Write it in quotes like '#FF0000', or as [255, 0, 0]. "
                 + "(Without quotes, everything after a # is ignored.)");
         return null;

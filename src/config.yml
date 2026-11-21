@@ -30,7 +30,8 @@ messages:
   undo-suggestion: '&7&oDid you possibly mean: &f/ai undoclear'
   tp-cancelled: '&c&lSorry. &fYou must wait until your clear/fortune is over to TP.'
 features:
-  # The prevention settings apply to both fortunes & clearing.
+  # The prevention settings apply to both fortunes & clearing. They cover the player's
+  # own items: the items an animation draws with can never be dropped, moved out, or used.
   prevent-drop: true
   prevent-move: true
   prevent-place: true

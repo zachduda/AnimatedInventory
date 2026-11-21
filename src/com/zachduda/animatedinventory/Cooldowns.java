@@ -1,6 +1,9 @@
 package com.zachduda.animatedinventory;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -33,8 +36,16 @@ public class Cooldowns implements Listener {
 
 	private static final Map < UUID, String > cooldown = new HashMap<>();
 	private static final Map < UUID, String > filecooldown = new HashMap<>();
-	private static final Map < UUID, String > active = new HashMap<>();
-	private static final Map < UUID, String > activefortune = new HashMap<>();
+	/**
+	 * Who is clearing or having a fortune, each with the items their animation draws
+	 * with. Those items are the plugin's, not the player's, so they must never leave
+	 * the animation (see MC1_20#isAnimationItem). Keeping them on the same entry as
+	 * the flag means every path that ends an animation forgets them too.
+	 */
+	private static final Map < UUID, List < ItemStack > > active = new HashMap<>();
+	private static final Map < UUID, List < ItemStack > > activefortune = new HashMap<>();
+
+	/** The hotbar a running fortune drew over, to hand back when it ends. */
 	private static final Map < UUID, ItemStack[] > inventories = new HashMap<>();
 	private static final Map < UUID, Long > isBeinghurt = new HashMap<>();
 
@@ -56,8 +67,32 @@ public class Cooldowns implements Listener {
 
 	/** True while the plugin is driving this player's inventory for any reason. */
 	public static boolean isBusy(final Player p) {
+		// Checked on every click and interaction on the server, and almost always
+		// nobody is busy, so skip the lookups then.
+		if (active.isEmpty() && activefortune.isEmpty()) {
+			return false;
+		}
 		final UUID id = p.getUniqueId();
 		return active.containsKey(id) || activefortune.containsKey(id);
+	}
+
+	/** The items the player's running clear or fortune draws with. Empty when there's none. */
+	static List < ItemStack > animationItems(final Player p) {
+		if (active.isEmpty() && activefortune.isEmpty()) {
+			return List.of();
+		}
+		final UUID id = p.getUniqueId();
+		final List < ItemStack > clearing = active.getOrDefault(id, List.of());
+		final List < ItemStack > fortune = activefortune.getOrDefault(id, List.of());
+		if (fortune.isEmpty()) {
+			return clearing;
+		}
+		if (clearing.isEmpty()) {
+			return fortune;
+		}
+		final List < ItemStack > both = new ArrayList<>(clearing);
+		both.addAll(fortune);
+		return both;
 	}
 
 	public static boolean onCooldown(final Player p) {
@@ -69,7 +104,12 @@ public class Cooldowns implements Listener {
 	}
 
 	static void markClearing(final Player p) {
-		active.put(p.getUniqueId(), p.getName());
+		active.put(p.getUniqueId(), List.of());
+	}
+
+	/** Records the items a clear draws with, once they're built. Only for a player marked as clearing. */
+	static void setClearingItems(final Player p, final Collection < ItemStack > items) {
+		active.computeIfPresent(p.getUniqueId(), (id, old) -> List.copyOf(items));
 	}
 
 	/** Clears the clearing flag, reporting whether it had been set. */
@@ -78,7 +118,11 @@ public class Cooldowns implements Listener {
 	}
 
 	public static void markFortune(final Player p) {
-		activefortune.put(p.getUniqueId(), p.getName());
+		markFortune(p, List.of());
+	}
+
+	static void markFortune(final Player p, final List < ItemStack > items) {
+		activefortune.put(p.getUniqueId(), List.copyOf(items));
 	}
 
 	/** Clears the fortune flag, reporting whether it had been set. */
@@ -95,8 +139,8 @@ public class Cooldowns implements Listener {
 		return fortuneResults.remove(p.getUniqueId());
 	}
 
-	static void stashInventory(final Player p, final ItemStack[] contents) {
-		inventories.put(p.getUniqueId(), contents);
+	static void stashInventory(final Player p, final ItemStack[] hotbar) {
+		inventories.put(p.getUniqueId(), hotbar);
 	}
 
 	static ItemStack[] peekInventory(final Player p) {
